@@ -1,0 +1,201 @@
+一、API接口地址                                                                                 
+
+url: https://chatai.dyg.com.cn/api/v1/chat/completions
+
+key: fastgpt-mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC
+
+      # hec_rag_formulation（制剂处方工艺知识库）
+      curl -X POST \
+        https://chatai.dyg.com.cn/api/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer fastgpt-
+      mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC" \
+        -d '{
+          "stream": true,
+          "messages": [
+           {"role": "user", "content": "这是一个模拟开场白"},
+           {"role": "assistant", "content": "\n我是一位制剂专家。"},
+           {"role": "user", "content": "分析化合物C[C@H]1[C@@H]
+      (O)O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]1[C@@]24OO3"}
+          ]
+        }'
+      
+
+      curl -X POST \
+        https://chatai.dyg.com.cn/api/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer fastgpt-
+      mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC" \
+        -d '{
+          "stream": true,
+          "messages": [
+            {"role": "user", "content": "This is a sample opening 
+      dialogue"},
+            {"role": "assistant", "content": "\nI am a pharmaceutical 
+      formulation expert."},
+            {"role": "user", "content": "Please analyze the chemical 
+      structure of the compound C[C@H]1[C@@H]
+      (O)O[C@@H]2O[C@@]3(C)CC[C@H]4[C@H](C)CC[C@@H]1[C@@]24OO3."}
+          ]
+        }'
+        
+      # hec_rag_pharmaceutics（药剂学综合知识库）
+      curl -X POST \
+  https://chatai.dyg.com.cn/api/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer fastgpt-
+mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC" \
+  -d '{
+    "stream": true,
+    "messages": [
+     {"role": "user", "content": "这是一个模拟开场白"},
+     {"role": "assistant", "content": "\n我是一位制剂专家。"},
+     {"role": "user", "content": "某API化学结构为`Cc1cn2nc(-
+c3cc(=O)n4cc(N5CCNC6(CC6)C5)ccc4n3)cc(C)c2n1`，请分析该结构，并给出其药
+物通用名。"}
+    ]
+  }'
+
+
+curl -X POST \
+  https://chatai.dyg.com.cn/api/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer fastgpt-
+mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC" \
+  -d '{
+    "stream": true,
+    "messages": [
+      {"role": "user", "content": "This is a sample opening 
+dialogue"},
+      {"role": "assistant", "content": "\nI am a pharmaceutical 
+formulation expert."},
+      {"role": "user", "content": "What are the advantages of gas 
+dispersion dosage forms?"}
+    ]
+  }'
+     # 响应格式说明
+     #运行
+     data: {"id":"","object":"","created":0,"model":"","choices":
+     [{"delta":
+     {"role":"assistant","content":"14"},"index":0,"finish_reason":null}
+     ]} 
+     #结束
+     data: {"id":"","object":"","created":0,"model":"","choices":
+     [{"delta":
+     {"role":"assistant","content":null},"index":0,"finish_reason":"stop
+     "}]}
+
+二、模型简介及参数说明                                                               
+
+HEC-PharmAI模型服务于新药研发与药物制剂研究领域，旨在通过人工智能大模型技术为
+研发人员提供药剂学知识分析与制剂处方工艺的初步方案设计。其核心功能包括：结构化文
+本转换与向量数据库构建、hec_rag知识库检索增强模块，辅以baseline_rag/graph_rag测试
+模块和ragas_benchmark评估框架。整合药剂学专著、专利、论文等数据，用户输入药剂学
+问题与化合物SMILES即可获取处方设计。支持本地命令行运行和OpenAI兼容API，可快速
+部署网页应用。
+
+模型特点：
+
+        支持模型 : DeepSeek-R1（默认）, deepseek-chat, deepseek-reasoner, Qwen3系
+        列
+        语言支持 : 中文/英文双语
+        知识库：制剂处方工艺知识库、药剂学综合知识库。根据知识库的不同分为两个模
+        型
+        响应特点 : 流式输出，包含思考过程
+
+参数说明：
+
+        --database：向量数据库路径
+        --embedding_model：嵌入模型路径
+        --reranker_model：重排序模型路径
+        --model_name：LLM 模型名称，默认为DeepSeek-R1
+        --context_messages：上下文消息文件，即前端输入的信息
+        --pop_first：忽略首轮QA （注：使用FastGPT做前端时会使用这个命令忽略开场
+        白，即忽略 {"role": "user", "content": "这是一个模拟开场白"},  {"role": "assistant", 
+        "content": "\n我是一位制剂专家。"}）
+三、UI设计建议                                                                                  
+
+         支持中英文切换
+         加载状态 : 显示"思考中..."
+         流式显示 : 逐字显示回答内容
+         引用展示 : 底部显示参考文献列表
+         历史记录 : 支持对话上下文保存
+
+参考如下：
+
+
+
+四、测试用例                                                                                    
+
+      1. hec_rag_formulation（制剂处方工艺知识库）-中文
+      单轮对话：
+      （1）请为比索洛尔（Bisoprolol）设计片剂，包括基于其特性的剂量，并以表格形式展示设
+      计的配方和剂量，同时解释设计的原因（包括配方和工艺）。
+      （2）请设计以加奈索酮（Ganaxolone）为活性成分的药物新剂型，以表格形式展示设计的配
+      方和剂量，同时解释设计的原因（包括配方和工艺）。
+      多轮对话：
+      （1）某 API 化学结构为Cc1cn2nc(-
+      c3cc(=O)n4cc(N5CCNC6(CC6)C5)ccc4n3)cc(C)c2n1，请分析该结构，并给出其药物
+      通用名。
+      （2）分析利司扑兰（Risdiplam）的理化性质、构效关系及药理（药效学和药代动力学）作
+      用。
+      （3）参考利司扑兰（Risdiplam）的现有处方，为其设计口崩片剂型，包括基于其特性的剂
+      量，并以表格形式展示设计的配方和剂量，解释设计理由。
+      （4）参考利司扑兰（Risdiplam）治疗脊髓性肌萎缩症的制剂工艺专利（WO/US），描述新
+      处方的工艺过程，突出关键参数。
+      
+
+      2. hec_rag_formulation（制剂处方工艺知识库）-英文
+      Single-turn dialogue:
+(1) Please design a tablet formulation for Bisoprolol, including 
+the dosage based on its characteristics. Present the designed 
+formulation and dosage in a table format, and explain the rationale 
+behind the design (including formulation and process).
+(2) Please design a new dosage form of the drug with Ganaxolone as 
+the active ingredient, present the designed formulation and dosage 
+in a table format, and explain the rationale for the design 
+(including formulation and process).
+Multi-turn dialogue:
+Formulation and Process Design of Compound Preparations
+(1) The chemical structure of a certain API is Cc1cn2nc(-
+c3cc(=O)n4cc(N5CCNC6(CC6)C5)ccc4n3)cc(C)c2n1. Please analyze this 
+structure and provide its generic drug name.
+(2) Analyze the physicochemical properties, structure-activity 
+relationship, and pharmacological (pharmacodynamic and 
+pharmacokinetic) effects of Risdiplam.
+(3) Referencing the existing prescription of Risdiplam, design an 
+orally disintegrating tablet formulation for it, including dosage 
+based on its characteristics, and present the designed formulation 
+and dosage in tabular form, explaining the design rationale.
+(4) Refer to the formulation process patent (WO/US) of Risdiplam 
+for the treatment of spinal muscular atrophy, describe the process 
+of the new formulation, and highlight the key parameters.
+
+
+3. hec_rag_pharmaceutics（药剂学综合知识库）-中文
+单轮对话：
+（1）影响半固体剂型溶出特征的关键因素有哪些？
+（2）气体分散型剂型的优势是什么？
+多轮对话：
+固体分散体技术综述
+（1）制备固体分散体剂型的主要目的是什么？
+（2）采用固体分散体技术可使药物的溶出速率提升多少？
+（3）固体分散体中溶解增强的可能机制有哪些？
+
+
+4.hec_rag_pharmaceutics（药剂学综合知识库）-英文
+Single-turn dialogue:
+(1) What are the key factors affecting the dissolution 
+characteristics of semi-solid dosage forms?
+(2) What are the advantages of gas dispersion dosage forms?
+Multi-turn dialogue:
+Review of Solid Dispersion Technology
+(1) What is the primary purpose of creating solid dispersion dosage 
+forms?
+      (2) How much can the dissolution rate of a drug increase when using 
+      solid dispersions?
+      (3) What are the possible mechanisms of enhanced dissolution in 
+      solid dispersions?
+
+
+ 
