@@ -1,166 +1,372 @@
 <template>
-  <div class="chat-container">
+  <div class="flex h-screen bg-gray-50 text-gray-800">
     <!-- 左侧边栏 - 对话历史 -->
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <h2>{{ language === 'zh' ? '会话历史' : 'Conversation History' }}</h2>
-        <button class="new-chat-btn" @click="startNewChat">
-          {{ language === 'zh' ? '新建对话' : 'New Chat' }}
-        </button>
+    <div class="w-80 bg-gray-100 border-r border-gray-200 flex flex-col">
+      <!-- 头部区域 -->
+      <div class="p-6 border-b border-gray-200">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
+            <span class="text-white font-bold text-sm">HEC</span>
+          </div>
+          <h1 class="text-lg font-bold text-gray-800">药剂综合大模型</h1>
+        </div>
+        
+        <!-- 新对话按钮 -->
+        <div class="flex gap-2">
+          <button 
+            class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+            @click="startNewChat"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            新对话
+          </button>
+          <button 
+            class="px-3 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all"
+            @click="exportChat"
+            title="导出对话"
+          >
+            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
-      <div class="chat-history">
+      
+      <!-- 聊天历史列表 -->
+      <div class="flex-1 overflow-y-auto p-3 space-y-2">
         <div 
           v-for="(chat, index) in chatHistory" 
           :key="index"
-          class="chat-item"
+          class="p-3 rounded-lg text-sm cursor-pointer transition-all relative group"
+          :class="currentChatIndex === index 
+            ? 'bg-blue-50 border border-blue-200' 
+            : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'"
           @click="loadChat(index)"
         >
-          <span>{{ chat.question.substring(0, 30) }}...</span>
+          <div class="flex items-start gap-3">
+            <div class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-gray-800 truncate">{{ chat.question }}</p>
+              <p class="text-xs text-gray-500 mt-1">{{ formatDate(chat.timestamp) }}</p>
+            </div>
+            <button 
+              class="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full hover:bg-red-100 flex items-center justify-center transition-all"
+              @click.stop="deleteChat(index)"
+              title="删除对话"
+            >
+              <svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- 加载更多 -->
+        <div v-if="chatHistory.length > 5" class="text-center py-4">
+          <button 
+            class="text-sm text-blue-600 hover:text-blue-700 transition-colors"
+            @click="loadMoreChats"
+          >
+            点击加载更多
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 主聊天区域 -->
-    <div class="main-chat">
-      <div class="chat-header">
-        <div class="logo">
-          <span class="logo-icon">🧪</span>
-          <h1>HEC-PharmAI</h1>
+    <div class="flex-1 flex flex-col bg-white">
+      <!-- 主区域头部 -->
+      <div class="p-4 border-b border-gray-200 bg-white">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-3">
+            <h2 class="text-lg font-semibold text-gray-800">
+              {{ currentChatTitle || '新对话' }}
+            </h2>
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                <span class="text-xs font-medium text-blue-600">①</span>
+              </div>
+              <span class="text-sm text-gray-500">{{ currentChat.messages.length }}条记录</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button 
+              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="更多选项"
+            >
+              <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="header-controls">
-          <select v-model="language" @change="changeLanguage">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
-          <button class="theme-toggle">🌙</button>
+        
+        <!-- 语言选择卡片 -->
+        <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">*语言/Language</span>
+            <select 
+              v-model="language" 
+              @change="changeLanguage"
+              class="ml-auto px-3 py-1.5 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            >
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+            
+          </div>
         </div>
       </div>
 
-      <div class="chat-messages">
+      <div class="flex-1 overflow-y-auto p-4 space-y-3" ref="chatMessagesContainer">
         <!-- 欢迎消息 -->
-        <div class="welcome-message">
-          <div class="avatar">👨‍🔬</div>
-          <div class="message-content">
-            <p>{{ language === 'zh' ? '我是基于基本模型DeepSeek-R1的药剂师聊天大模型，此应用适用于药剂学通用知识和前沿研究问答，以下问题仅供参考：' : 'I am a pharmaceutical expert chat model based on DeepSeek-R1, suitable for general pharmaceutical knowledge and cutting-edge research Q&A. Here are some reference questions:' }}</p>
+        <div class="flex gap-3" v-if="currentChat.messages.length === 0">
+          <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <span class="text-white font-bold text-sm">HEC</span>
+          </div>
+          <div class="flex-1">
+            <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-xs text-gray-500">{{ formatTime(new Date()) }}</span>
+              </div>
+              <p class="leading-relaxed text-gray-800 mb-4">
+                {{ language === 'zh' 
+                  ? '您好,我是基于集团本地部署 DeepSeek-R1 的药物制剂垂直大模型。此应用适用于药剂学通用知识与前沿研究问答。以下提问模板供参考:' 
+                  : 'Hello, I am a pharmaceutical formulation vertical large model based on the group\'s local deployment of DeepSeek-R1. This application is suitable for general knowledge and cutting-edge research questions in pharmaceutics. The following question templates are provided for reference:' 
+                }}
+              </p>
+              
+              <!-- 示例问题 -->
+              <div class="space-y-3">
+                <div>
+                  <h4 class="text-sm font-semibold mb-2 text-gray-800">{{ language === 'zh' ? '单轮对话:' : 'Single-turn dialogue:' }}</h4>
+                  <ul class="space-y-1.5">
+                    <li v-for="(q, idx) in exampleQuestions.singleTurn[language]" :key="idx" 
+                        class="bg-gray-50 rounded-lg text-sm text-gray-700 cursor-pointer border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all" 
+                        @click="sendExampleQuestion(q)">
+                      {{ q }}
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 class="text-sm font-semibold mb-2 text-gray-800">{{ language === 'zh' ? '多轮对话:' : 'Multi-turn dialogue:' }}</h4>
+                  <div class="space-y-2.5">
+                    <div v-for="(section, sectionIdx) in exampleQuestions.multiTurn[language]" :key="sectionIdx">
+                      <div class="text-xs font-medium text-gray-600 mb-1.5">{{ sectionIdx + 1 }}. {{ section.title }}</div>
+                      <ul class="space-y-1.5">
+                        <li v-for="(q, idx) in section.questions" :key="idx" 
+                            class="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 cursor-pointer border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all" 
+                            @click="sendExampleQuestion(q)">
+                          {{ q }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 用户和助手的消息 -->
+        <template v-for="(message, index) in currentChat.messages" :key="index">
+          <div 
+            class="flex gap-4" 
+            :class="message.role === 'user' ? 'justify-end' : ''"
+          >
+            <template v-if="message.role === 'assistant'">
+              <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                <span class="text-white font-bold text-sm">HEC</span>
+              </div>
+            </template>
             
-            <!-- 示例问题 -->
-            <div class="example-questions">
-              <div class="question-section">
-                <h4>{{ language === 'zh' ? '单轮对话：' : 'Single-turn Dialogue:' }}</h4>
-                <ul>
-                  <li v-for="(q, idx) in exampleQuestions.singleTurn[language]" :key="idx" @click="sendExampleQuestion(q)">
-                    {{ q }}
-                  </li>
-                </ul>
-              </div>
-              <div class="question-section">
-                <h4>{{ language === 'zh' ? '固体分散体技术综述' : 'Review of Solid Dispersion Technology' }}</h4>
-                <ul>
-                  <li v-for="(q, idx) in exampleQuestions.multiTurn[language]" :key="idx" @click="sendExampleQuestion(q)">
-                    {{ q }}
-                  </li>
-                </ul>
-              </div>
+            <div 
+              class="max-w-[80%]"
+              :class="message.role === 'user' ? 'order-1' : 'order-2 flex-1'"
+            >
+              <template v-if="loading && index === currentChat.messages.length - 1">
+                <!-- 加载状态 - 思考动画 -->
+                <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm message-appear">
+                  <div class="thinking-container">
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                    <div class="thinking-dot"></div>
+                    <span class="text-sm text-gray-500 ml-2">{{ language === 'zh' ? '正在思考中...' : 'Thinking...' }}</span>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div 
+                  class="p-3 rounded-xl border shadow-sm group relative"
+                  :class="message.role === 'user' 
+                    ? 'bg-blue-600 text-white border-blue-600' 
+                    : 'bg-white border-gray-200'"
+                >
+                  
+                  <!-- 思考过程显示 -->
+                  <div v-if="showThinking && thinkingContent" class="mb-3">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                      <button 
+                        @click="showThinking = !showThinking"
+                        class="w-full px-3 py-2 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-between text-left"
+                      >
+                        <div class="flex items-center gap-2">
+                          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                          </svg>
+                          <span class="text-sm font-medium text-gray-700">思考过程</span>
+                          <span class="text-xs text-gray-500">({{ thinkingContent.length }} 字符)</span>
+                        </div>
+                        <svg 
+                          class="w-4 h-4 text-gray-600 transition-transform"
+                          :class="showThinking ? 'rotate-180' : ''"
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                      </button>
+                      <div v-if="showThinking" class="p-3 bg-white">
+                        <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono">
+                          {{ thinkingContent }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p v-html="formatMessage(message.content)" class="whitespace-pre-wrap leading-relaxed"></p>
+                  <!-- 引用部分 -->
+                  <div v-if="message.references && message.references.length > 0" class="mt-3">
+                    <h4 class="text-sm font-semibold mb-1.5 text-gray-600 flex items-center gap-1.5" :class="message.role === 'user' ? 'text-white/80' : ''">
+                      <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">📚</span>
+                      {{ language === 'zh' ? '参考文献' : 'References' }}
+                    </h4>
+                    <div class="space-y-1">
+                      <div v-for="(ref, refIdx) in message.references" :key="refIdx" class="reference-item">
+                        <span class="reference-icon">{{ refIdx + 1 }}.</span>
+                        <span class="reference-content" v-html="formatMessage(ref)"></span>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- 消息时间戳和操作按钮 -->
+                  <div class="flex items-center justify-between mt-1.5">
+                    <div class="text-[11px] text-gray-400" :class="message.role === 'user' ? 'text-white/60' : ''">
+                      {{ formatTime(message.timestamp || new Date()) }}
+                    </div>
+                    <!-- 右下角操作按钮 -->
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        class="p-1 rounded transition-colors"
+                        :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
+                        @click="copyMessage(message.content)"
+                        title="复制"
+                      >
+                        <svg class="w-3 h-3 transition-colors" 
+                             :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                      </button>
+                      <button 
+                        v-if="message.role === 'assistant'"
+                        class="p-1 hover:bg-gray-100 rounded transition-colors"
+                        @click="likeMessage(index)"
+                        title="点赞"
+                      >
+                        <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                      </button>
+                      <button 
+                        class="p-1 rounded transition-colors"
+                        :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
+                        @click="deleteMessage(index)"
+                        title="删除消息"
+                      >
+                        <svg class="w-3 h-3 transition-colors" 
+                             :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </div>
+            
+            <template v-if="message.role === 'user'">
+              <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm text-gray-600 order-0 flex-shrink-0">👤</div>
+            </template>
           </div>
-        </div>
-
-        <!-- 对话消息 -->
-        <div 
-          v-for="(message, index) in currentChat.messages" 
-          :key="index"
-          class="message" :class="message.role === 'user' ? 'user-message' : 'assistant-message'"
-        >
-          <div class="avatar">
-            {{ message.role === 'user' ? '👤' : '👨‍🔬' }}
-          </div>
-          <div class="message-content">
-            <p v-html="formatMessage(message.role === 'assistant' && message.content && typeof message.content === 'object' ? message.content.value : message.content)"></p>
-            <!-- 引用部分 -->
-            <div v-if="message.references && message.references.length > 0" class="references">
-              <h4>{{ language === 'zh' ? '参考文献：' : 'References:' }}</h4>
-              <ul>
-                <li v-for="(ref, refIdx) in message.references" :key="refIdx">
-                  {{ ref }}
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- 加载状态 -->
-        <div v-if="loading" class="loading-message">
-          <div class="avatar">👨‍🔬</div>
-          <div class="message-content">
-            <p>{{ language === 'zh' ? '思考中...' : 'Thinking...' }}</p>
-            <div class="loading-dots">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
-        </div>
+        </template>
       </div>
 
       <!-- 输入区域 -->
-      <div class="chat-input-area">
-        <div class="input-container">
-          <textarea 
-            v-model="userInput" 
-            @keydown.ctrl.enter="sendMessage"
-            @keydown.shift.enter="sendMessage"
-            :placeholder="language === 'zh' ? '请输入您的问题... (Ctrl+Enter 发送)' : 'Please enter your question... (Ctrl+Enter to send)'"
-            :disabled="loading"
-          ></textarea>
+      <div class="p-3 border-t border-gray-200 bg-white">
+        <div class="flex gap-3">
+          <!-- 左侧操作按钮 -->
+          <div class="flex gap-2">
+            <button 
+              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="copyInput"
+              title="复制"
+            >
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+            </button>
+            <button 
+              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="regenerateResponse"
+              title="重新生成"
+            >
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+            </button>
+            <button 
+              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              @click="clearInput"
+              title="清空"
+            >
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <!-- 输入框 -->
+          <div class="flex-1 relative">
+            <textarea 
+              v-model="userInput" 
+              @keydown.ctrl.enter="sendMessage"
+              @keydown.shift.enter="sendMessage"
+              @keydown.escape="clearInput"
+              :placeholder="language === 'zh' ? '请输入您的问题...' : 'Please enter your question...'"
+              :disabled="loading"
+              class="w-full p-3 pr-12 border border-gray-300 rounded-lg text-sm leading-relaxed resize-none min-h-[44px] max-h-[120px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
+            ></textarea>
+          </div>
+          
+          <!-- 发送按钮 -->
           <button 
-            class="send-btn"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
             @click="sendMessage"
             :disabled="loading || !userInput.trim()"
           >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
             {{ language === 'zh' ? '发送' : 'Send' }}
           </button>
-        </div>
-        <div class="input-hint">
-          {{ language === 'zh' ? '支持输入化合物SMILES、药剂学问题等' : 'Support input of compound SMILES, pharmaceutical questions, etc.' }}
-        </div>
-      </div>
-    </div>
-
-    <!-- 右侧边栏 - 知识库选择 -->
-    <div class="sidebar right-sidebar">
-      <div class="sidebar-header">
-        <h2>{{ language === 'zh' ? '知识库选择' : 'Knowledge Base' }}</h2>
-      </div>
-      <div class="knowledge-bases">
-        <div 
-          class="kb-item" 
-          :class="selectedKB === 'hec_rag_formulation' ? 'active' : ''"
-          @click="selectKB('hec_rag_formulation')"
-        >
-          <h3>{{ language === 'zh' ? '制剂处方工艺知识库' : 'Formulation Process KB' }}</h3>
-          <p>{{ language === 'zh' ? '适用于药物处方设计、工艺优化等' : 'For drug formulation design, process optimization, etc.' }}</p>
-        </div>
-        <div 
-          class="kb-item" 
-          :class="selectedKB === 'hec_rag_pharmaceutics' ? 'active' : ''"
-          @click="selectKB('hec_rag_pharmaceutics')"
-        >
-          <h3>{{ language === 'zh' ? '药剂学综合知识库' : 'Pharmaceutics General KB' }}</h3>
-          <p>{{ language === 'zh' ? '适用于药剂学基础理论、通用知识等' : 'For basic pharmaceutical theory, general knowledge, etc.' }}</p>
-        </div>
-      </div>
-      
-      <!-- 模型参数设置 -->
-      <div class="model-params">
-        <h3>{{ language === 'zh' ? '模型参数' : 'Model Parameters' }}</h3>
-        <div class="param-item">
-          <label>{{ language === 'zh' ? '模型名称' : 'Model Name' }}</label>
-          <select v-model="modelParams.model_name">
-            <option value="DeepSeek-R1">DeepSeek-R1</option>
-            <option value="deepseek-chat">deepseek-chat</option>
-            <option value="deepseek-reasoner">deepseek-reasoner</option>
-            <option value="Qwen3">Qwen3</option>
-          </select>
         </div>
       </div>
     </div>
@@ -168,7 +374,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, nextTick } from 'vue';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 
 export default {
@@ -178,42 +384,16 @@ export default {
     const language = ref('zh');
     const userInput = ref('');
     const loading = ref(false);
-    const selectedKB = ref('hec_rag_formulation');
     const chatHistory = ref([]);
     const currentChat = reactive({
       messages: []
     });
-    
-    // 模型参数
-    const modelParams = reactive({
-      model_name: 'DeepSeek-R1'
-    });
-
-    // 示例问题
-    const exampleQuestions = {
-      singleTurn: {
-        zh: [
-          '影响半固体剂型溶出特征的关键因素有哪些？',
-          '气体分散型剂型的优势是什么？'
-        ],
-        en: [
-          'What are the key factors affecting the dissolution characteristics of semi-solid dosage forms?',
-          'What are the advantages of gas dispersion dosage forms?'
-        ]
-      },
-      multiTurn: {
-        zh: [
-          '制备固体分散体剂型的主要目的是什么？',
-          '采用固体分散体技术可使药物的溶出速率提升多少？',
-          '固体分散体中溶解增强的可能机制有哪些？'
-        ],
-        en: [
-          'What is the primary purpose of creating solid dispersion dosage forms?',
-          'How much can the dissolution rate of a drug increase when using solid dispersions?',
-          'What are the possible mechanisms of enhanced dissolution in solid dispersions?'
-        ]
-      }
-    };
+    const chatMessagesContainer = ref(null);
+    const currentChatIndex = ref(-1);
+    const currentChatTitle = ref('');
+    const isInThinkingMode = ref(false);
+    const thinkingContent = ref('');
+    const showThinking = ref(false);
 
     // 初始化加载历史聊天记录
     onMounted(() => {
@@ -233,10 +413,12 @@ export default {
       // 处理ref对象，确保正确序列化
       const historyToSave = chatHistory.value.map(chat => ({
         question: chat.question,
+        timestamp: chat.timestamp || new Date(),
         messages: chat.messages.map(msg => ({
           role: msg.role,
-          content: msg.role === 'assistant' && msg.content && typeof msg.content === 'object' ? msg.content.value : msg.content,
-          references: msg.references || []
+          content: msg.content,
+          references: msg.references || [],
+          timestamp: msg.timestamp || new Date()
         }))
       }));
       localStorage.setItem('chatHistory', JSON.stringify(historyToSave));
@@ -246,30 +428,85 @@ export default {
     const startNewChat = () => {
       currentChat.messages = [];
       userInput.value = '';
+      currentChatIndex.value = -1;
+      currentChatTitle.value = '';
+      isInThinkingMode.value = false;
+      thinkingContent.value = '';
+      showThinking.value = false;
     };
 
     // 加载历史对话
     const loadChat = (index) => {
-      const messages = chatHistory.value[index].messages;
-      currentChat.messages = messages.map(msg => {
-        if (msg.role === 'assistant') {
-          return {
-            ...msg,
-            content: ref(msg.content) // 将内容包装成ref以确保响应式
-          };
-        }
-        return msg;
-      });
+      const chat = chatHistory.value[index];
+      const messages = chat.messages;
+      currentChat.messages = messages.map(msg => ({
+        ...msg
+      }));
+      currentChatIndex.value = index;
+      currentChatTitle.value = chat.question;
+    };
+
+    // 删除聊天记录
+    const deleteChat = (index) => {
+      if (confirm(language.value === 'zh' ? '确定要删除这条对话记录吗？' : 'Are you sure you want to delete this conversation?')) {
+        chatHistory.value.splice(index, 1);
+        saveChatHistory();
+      }
+    };
+
+    // 示例问题
+    const exampleQuestions = {
+      singleTurn: {
+        zh: [
+          '影响半固体剂型溶出特征的关键因素有哪些？',
+          '气体分散型剂型的优势是什么？'
+        ],
+        en: [
+          'What are the key factors affecting the dissolution characteristics of semi-solid dosage forms?',
+          'What are the advantages of gas dispersion dosage forms?'
+        ]
+      },
+      multiTurn: {
+        zh: [
+          {
+            title: '固体分散体技术综述',
+            questions: [
+              '制备固体分散体剂型的主要目的是什么？',
+              '采用固体分散体技术可使药物的溶出速率提升多少？',
+              '固体分散体中溶解增强的可能机制有哪些？'
+            ]
+          },
+          {
+            title: '纳米颗粒案例研究',
+            questions: [
+              '纳米颗粒在药物递送中的优势是什么？',
+              '如何制备稳定的纳米颗粒制剂？'
+            ]
+          }
+        ],
+        en: [
+          {
+            title: 'Review of Solid Dispersion Technology',
+            questions: [
+              'What is the primary purpose of creating solid dispersion dosage forms?',
+              'How much can the dissolution rate of a drug increase when using solid dispersions?',
+              'What are the possible mechanisms of enhanced dissolution in solid dispersions?'
+            ]
+          },
+          {
+            title: 'Nanoparticle Case Study',
+            questions: [
+              'What are the advantages of nanoparticles in drug delivery?',
+              'How to prepare stable nanoparticle formulations?'
+            ]
+          }
+        ]
+      }
     };
 
     // 切换语言
     const changeLanguage = () => {
       // 语言切换时可能需要的操作
-    };
-
-    // 选择知识库
-    const selectKB = (kb) => {
-      selectedKB.value = kb;
     };
 
     // 发送示例问题
@@ -287,7 +524,13 @@ export default {
       // 添加用户消息到当前对话
       currentChat.messages.push({
         role: 'user',
-        content: question
+        content: question,
+        timestamp: new Date()
+      });
+
+      // 滚动到底部
+      nextTick(() => {
+        scrollToBottom();
       });
 
       // 清空输入框
@@ -295,6 +538,9 @@ export default {
       
       // 设置加载状态
       loading.value = true;
+      isInThinkingMode.value = false;
+      thinkingContent.value = '';
+      showThinking.value = false;
 
       try {
         // 准备API请求参数
@@ -305,28 +551,19 @@ export default {
         // 构建消息历史
         let messages = [];
         
-        // 根据知识库类型添加开场白
-        if (selectedKB.value === 'hec_rag_formulation') {
-          messages.push(
-            { role: 'user', content: '这是一个模拟开场白' },
-            { role: 'assistant', content: '\n我是一位制剂专家。' }
-          );
-        } else if (selectedKB.value === 'hec_rag_pharmaceutics') {
-          messages.push(
-            { role: 'user', content: '这是一个模拟开场白' },
-            { role: 'assistant', content: '\n我是一位制剂专家。' }
-          );
-        }
+        // 添加开场白（根据客户要求文档）
+        messages.push({ role: 'user', content: '这是一个模拟开场白' });
+        messages.push({ role: 'assistant', content: '\n我是一位制剂专家。' });
         
         // 添加用户问题
         messages.push({ role: 'user', content: question });
 
-        // 创建响应元素 - 使用ref确保content属性是响应式的
-        const responseContent = ref('');
+        // 创建响应元素 - 直接使用字符串，避免ref包装
         const responseElement = {
           role: 'assistant',
-          content: responseContent,
-          references: []
+          content: '',
+          references: [],
+          timestamp: new Date()
         };
         
         currentChat.messages.push(responseElement);
@@ -349,7 +586,7 @@ export default {
           body: JSON.stringify({
             stream: true,
             messages: messages,
-            model: modelParams.model_name
+            model: 'DeepSeek-R1'
           }),
           // 使用credentials: 'include'来确保在重定向过程中也发送凭证
           credentials: 'include',
@@ -362,7 +599,20 @@ export default {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`HTTP错误! 状态码: ${response.status}, 错误信息: ${errorText}`);
-          throw new Error(`HTTP错误! 状态码: ${response.status}`);
+          console.error('请求URL:', apiUrl);
+          console.error('请求头:', {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'X-Requested-With': 'XMLHttpRequest'
+          });
+          console.error('请求体:', JSON.stringify({
+            stream: true,
+            messages: messages,
+            model: 'DeepSeek-R1'
+          }, null, 2));
+          throw new Error(`HTTP错误! 状态码: ${response.status}, 错误信息: ${errorText}`);
         }
 
         const reader = response.body.getReader();
@@ -393,12 +643,10 @@ export default {
                   }
                   chatHistory.value.push({
                     question: question,
-                    messages: [...currentChat.messages]
+                    messages: [...currentChat.messages],
+                    timestamp: new Date()
                   });
                   saveChatHistory();
-                  console.log('流式响应结束，最终内容:', responseElement.content);
-                  console.log('当前currentChat.messages数组:', currentChat.messages);
-                  console.log('响应元素在数组中的位置:', currentChat.messages.indexOf(responseElement));
                   // 响应完成时设置loading为false
                   loading.value = false;
                   break;
@@ -406,20 +654,65 @@ export default {
                 
                 try {
                   const parsed = JSON.parse(data);
-                  console.log('解析到的响应数据:', parsed);
                   
                   // 检查不同的响应格式
                   let content = null;
+                  console.log('完整的parsed响应:', JSON.stringify(parsed, null, 2));
                   
-                  // 格式1: choices[0].delta.reasoning_content (这个API实际使用的格式)
-                  if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.reasoning_content) {
-                    content = parsed.choices[0].delta.reasoning_content;
-                    console.log('使用格式1 - choices[0].delta.reasoning_content:', content);
+                  // 首先检查是否有任何内容，如果有就停止loading
+                  const hasContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content;
+                  const hasReasoningContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.reasoning_content;
+                  
+                  if ((hasContent || hasReasoningContent) && loading.value) {
+                    console.log('检测到响应内容，停止loading状态');
+                    loading.value = false;
                   }
-                  // 格式2: choices[0].delta.content (标准OpenAI格式)
-                  else if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                  
+                  // 如果只有reasoning_content而没有content，说明这是答案内容，不是思考过程
+                  if (hasReasoningContent && !hasContent) {
+                    console.log('检测到只有reasoning_content，将其作为答案内容显示');
+                    isInThinkingMode.value = false; // 强制退出思考模式
+                  }
+                  
+                  // 格式1: choices[0].delta.content (标准OpenAI格式) - 优先显示最终答案
+                  if (hasContent) {
                     content = parsed.choices[0].delta.content;
-                    console.log('使用格式2 - choices[0].delta.content:', content);
+                    console.log('使用格式1 - choices[0].delta.content:', content);
+                  }
+                  // 格式2: choices[0].delta.reasoning_content (DeepSeek-R1内容) - 仅在没有content时显示
+                  else if (hasReasoningContent) {
+                    const reasoningContent = parsed.choices[0].delta.reasoning_content;
+                    
+                    // 检查是否是思考过程的开始标记
+                    if (reasoningContent === '<think>') {
+                      isInThinkingMode.value = true;
+                      thinkingContent.value = '';
+                      showThinking.value = true;
+                      console.log('开始思考过程');
+                      continue; // 跳过思考开始标记
+                    }
+                    
+                    // 检查是否是思考过程的结束标记
+                    if (reasoningContent === '</think>') {
+                      isInThinkingMode.value = false;
+                      console.log('结束思考过程');
+                      continue; // 跳过思考结束标记
+                    }
+                    
+                    // 如果在思考模式中，收集思考内容
+                    if (isInThinkingMode.value) {
+                      thinkingContent.value += reasoningContent;
+                      console.log('收集思考过程内容:', reasoningContent);
+                      // 强制Vue重新渲染思考内容
+                      nextTick(() => {
+                        scrollToBottom();
+                      });
+                      continue;
+                    }
+                    
+                    // 只有在非思考模式下才显示内容
+                    content = reasoningContent;
+                    console.log('使用格式2 - choices[0].delta.reasoning_content:', content);
                   }
                   // 格式3: choices[0].text (替代格式)
                   else if (parsed.choices && parsed.choices[0] && parsed.choices[0].text) {
@@ -438,9 +731,13 @@ export default {
                   }
                   
                   if (content) {
-                    responseContent.value += content;
-                    // responseElement.content 已经是响应式的，不需要重新赋值
-                    console.log('更新后的完整内容:', responseContent.value);
+                    responseElement.content += content;
+                    // 强制Vue重新渲染
+                    currentChat.messages = [...currentChat.messages];
+                    // 每次更新内容后滚动到底部
+                    nextTick(() => {
+                      scrollToBottom();
+                    });
                   } else {
                     console.log('未找到有效的内容字段，响应结构:', parsed);
                   }
@@ -479,7 +776,8 @@ export default {
           content: language.value === 'zh' 
             ? `抱歉，我暂时无法为您提供答案。错误信息：${error.message}。请稍后再试。` 
             : `Sorry, I cannot provide an answer for you at the moment. Error: ${error.message}. Please try again later.`,
-          references: []
+          references: [],
+          timestamp: new Date()
         };
         currentChat.messages.push(errorMessage);
         // 只有在错误情况下才设置loading为false
@@ -509,514 +807,146 @@ export default {
       return formatted;
     };
 
+    // 滚动到底部
+    const scrollToBottom = () => {
+      if (chatMessagesContainer.value) {
+        chatMessagesContainer.value.scrollTop = chatMessagesContainer.value.scrollHeight;
+      }
+    };
+
+    // 清空输入框
+    const clearInput = () => {
+      userInput.value = '';
+    };
+
+    // 格式化时间
+    const formatTime = (date) => {
+      const now = new Date(date);
+      return now.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // 格式化日期
+    const formatDate = (date) => {
+      const now = new Date(date);
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${month}-${day}`;
+    };
+
+    // 复制消息
+    const copyMessage = async (content) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        // 可以添加提示
+      } catch (err) {
+        console.error('复制失败:', err);
+      }
+    };
+
+    // 复制输入内容
+    const copyInput = async () => {
+      try {
+        await navigator.clipboard.writeText(userInput.value);
+      } catch (err) {
+        console.error('复制失败:', err);
+      }
+    };
+
+    // 重新生成响应
+    const regenerateResponse = () => {
+      if (currentChat.messages.length > 0) {
+        const lastUserMessage = currentChat.messages.filter(msg => msg.role === 'user').pop();
+        if (lastUserMessage) {
+          userInput.value = lastUserMessage.content;
+          sendMessage();
+        }
+      }
+    };
+
+    // 点赞消息
+    const likeMessage = (index) => {
+      // 实现点赞功能
+      console.log('点赞消息:', index);
+    };
+
+    // 删除消息
+    const deleteMessage = (index) => {
+      if (confirm('确定要删除这条消息吗？')) {
+        currentChat.messages.splice(index, 1);
+        // 保存更新后的聊天记录
+        saveChatHistory();
+        console.log('删除消息:', index);
+      }
+    };
+
+    // 导出对话
+    const exportChat = () => {
+      if (currentChat.messages.length === 0) {
+        alert('没有对话内容可导出');
+        return;
+      }
+      
+      const chatData = {
+        title: currentChatTitle.value || '对话记录',
+        messages: currentChat.messages.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        })),
+        exportTime: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    // 加载更多聊天记录
+    const loadMoreChats = () => {
+      // 实现加载更多功能
+      console.log('加载更多聊天记录');
+    };
+
     return {
       language,
       userInput,
       loading,
-      selectedKB,
       chatHistory,
       currentChat,
-      modelParams,
+      currentChatIndex,
+      currentChatTitle,
+      isInThinkingMode,
+      thinkingContent,
+      showThinking,
       exampleQuestions,
       startNewChat,
       loadChat,
       changeLanguage,
-      selectKB,
       sendExampleQuestion,
       sendMessage,
-      formatMessage
+      formatMessage,
+      chatMessagesContainer,
+      clearInput,
+      deleteChat,
+      formatTime,
+      formatDate,
+      copyMessage,
+      copyInput,
+      regenerateResponse,
+      likeMessage,
+      deleteMessage,
+      exportChat,
+      loadMoreChats
     };
   }
 };
 </script>
-
-<style scoped>
-.chat-container {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-  background-color: #f0f2f5;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* 侧边栏样式 */
-.sidebar {
-  width: 280px;
-  background-color: #fff;
-  border-right: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.sidebar-header {
-  padding: 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.sidebar-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-  color: #333;
-}
-
-.new-chat-btn {
-  padding: 8px 16px;
-  background-color: #4f46e5;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.new-chat-btn:hover {
-  background-color: #4338ca;
-}
-
-.chat-history {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-}
-
-.chat-item {
-  padding: 12px 16px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
-  color: #4b5563;
-}
-
-.chat-item:hover {
-  background-color: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-/* 主聊天区域 */
-.main-chat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background-color: #fff;
-  min-width: 0;
-}
-
-.chat-header {
-  padding: 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #fff;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.logo-icon {
-  font-size: 32px;
-}
-
-.logo h1 {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-controls select {
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 14px;
-  background-color: #fff;
-  cursor: pointer;
-}
-
-.theme-toggle {
-  padding: 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background-color: #fff;
-  cursor: pointer;
-  font-size: 18px;
-  transition: all 0.2s;
-}
-
-.theme-toggle:hover {
-  background-color: #f3f4f6;
-}
-
-/* 聊天消息区域 */
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background-color: #f9fafb;
-}
-
-.welcome-message {
-  background-color: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e5e7eb;
-}
-
-.example-questions {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.question-section h4 {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
-}
-
-.question-section ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.question-section li {
-  padding: 10px 12px;
-  background-color: #f3f4f6;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #4b5563;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid #e5e7eb;
-}
-
-.question-section li:hover {
-  background-color: #e5e7eb;
-  border-color: #d1d5db;
-}
-
-.message {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  max-width: 800px;
-}
-
-.user-message {
-  align-self: flex-end;
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.message-content {
-  flex: 1;
-  background-color: #fff;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.user-message .message-content {
-  background-color: #4f46e5;
-  color: white;
-}
-
-.message-content p {
-  margin: 0 0 8px 0;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.references {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.user-message .references {
-  border-top-color: rgba(255, 255, 255, 0.2);
-}
-
-.references h4 {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #6b7280;
-}
-
-.user-message .references h4 {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.references ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.user-message .references ul {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.references li {
-  margin-bottom: 4px;
-  line-height: 1.4;
-}
-
-/* 加载状态 */
-.loading-message {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  max-width: 800px;
-}
-
-.loading-dots {
-  display: flex;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.loading-dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #4f46e5;
-  animation: loading 1.4s infinite ease-in-out both;
-}
-
-.loading-dots span:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.loading-dots span:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes loading {
-  0%, 80%, 100% {
-    transform: scale(0);
-  }
-  40% {
-    transform: scale(1);
-  }
-}
-
-/* 输入区域 */
-.chat-input-area {
-  padding: 20px;
-  border-top: 1px solid #e5e7eb;
-  background-color: #fff;
-}
-
-.input-container {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.input-container textarea {
-  flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  font-size: 14px;
-  font-family: inherit;
-  line-height: 1.5;
-  resize: none;
-  min-height: 60px;
-  max-height: 200px;
-  transition: border-color 0.2s;
-}
-
-.input-container textarea:focus {
-  outline: none;
-  border-color: #4f46e5;
-}
-
-.input-container textarea:disabled {
-  background-color: #f3f4f6;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  padding: 12px 24px;
-  background-color: #4f46e5;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  align-self: flex-end;
-}
-
-.send-btn:hover:not(:disabled) {
-  background-color: #4338ca;
-  transform: translateY(-1px);
-}
-
-.send-btn:disabled {
-  background-color: #9ca3af;
-  cursor: not-allowed;
-}
-
-.input-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  text-align: center;
-}
-
-/* 右侧边栏 */
-.right-sidebar {
-  border-left: 1px solid #e5e7eb;
-  border-right: none;
-}
-
-.knowledge-bases {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.kb-item {
-  padding: 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: #f9fafb;
-}
-
-.kb-item:hover {
-  border-color: #4f46e5;
-  background-color: #f0f9ff;
-}
-
-.kb-item.active {
-  border-color: #4f46e5;
-  background-color: #f0f9ff;
-}
-
-.kb-item h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #333;
-}
-
-.kb-item p {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0;
-  line-height: 1.4;
-}
-
-/* 模型参数 */
-.model-params {
-  padding: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.model-params h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 16px 0;
-  color: #333;
-}
-
-.param-item {
-  margin-bottom: 16px;
-}
-
-.param-item label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: #4b5563;
-}
-
-.param-item select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 14px;
-  background-color: #fff;
-  cursor: pointer;
-}
-
-/* 响应式设计 */
-@media (max-width: 1200px) {
-  .sidebar {
-    width: 240px;
-  }
-}
-
-@media (max-width: 768px) {
-  .chat-container {
-    flex-direction: column;
-  }
-  
-  .sidebar {
-    width: 100%;
-    height: 200px;
-  }
-  
-  .right-sidebar {
-    display: none;
-  }
-  
-  .message {
-    max-width: 100%;
-  }
-}
-</style>
