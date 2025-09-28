@@ -311,38 +311,7 @@
 
       <!-- 输入区域 -->
       <div class="p-3 border-t border-gray-200 bg-white">
-        <div class="flex gap-3">
-          <!-- 左侧操作按钮 -->
-          <div class="flex gap-2">
-            <button 
-              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              @click="copyInput"
-              title="复制"
-            >
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-              </svg>
-            </button>
-            <button 
-              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              @click="regenerateResponse"
-              title="重新生成"
-            >
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-              </svg>
-            </button>
-            <button 
-              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              @click="clearInput"
-              title="清空"
-            >
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-              </svg>
-            </button>
-          </div>
-          
+        <div class="flex gap-3 items-center">
           <!-- 输入框 -->
           <div class="flex-1 relative">
             <textarea 
@@ -352,13 +321,14 @@
               @keydown.escape="clearInput"
               :placeholder="language === 'zh' ? '请输入您的问题...' : 'Please enter your question...'"
               :disabled="loading"
-              class="w-full p-3 pr-12 border border-gray-300 rounded-lg text-sm leading-relaxed resize-none min-h-[44px] max-h-[120px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
+              class="w-full p-3 border border-gray-300 rounded-lg text-sm leading-relaxed resize-none min-h-[44px] max-h-[120px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
             ></textarea>
           </div>
           
-          <!-- 发送按钮 -->
+          <!-- 发送/终止按钮 -->
           <button 
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            v-if="!loading"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 h-[44px]"
             @click="sendMessage"
             :disabled="loading || !userInput.trim()"
           >
@@ -366,6 +336,18 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
             </svg>
             {{ language === 'zh' ? '发送' : 'Send' }}
+          </button>
+          
+          <!-- 终止按钮 (在发送按钮基础上显示) -->
+          <button 
+            v-else
+            class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 h-[44px]"
+            @click="cancelRequest"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            {{ language === 'zh' ? '终止' : 'Stop' }}
           </button>
         </div>
       </div>
@@ -394,6 +376,7 @@ export default {
     const isInThinkingMode = ref(false);
     const thinkingContent = ref('');
     const showThinking = ref(false);
+    const controller = ref(null); // 用于取消请求的控制器
 
     // 初始化加载历史聊天记录
     onMounted(() => {
@@ -433,6 +416,10 @@ export default {
       isInThinkingMode.value = false;
       thinkingContent.value = '';
       showThinking.value = false;
+      // 如果有正在进行的请求，取消它
+      if (controller.value) {
+        controller.value.abort();
+      }
     };
 
     // 加载历史对话
@@ -541,6 +528,8 @@ export default {
       isInThinkingMode.value = false;
       thinkingContent.value = '';
       showThinking.value = false;
+      // 初始化abort controller用于取消请求
+      controller.value = new AbortController();
 
       try {
         // 准备API请求参数
@@ -568,10 +557,6 @@ export default {
         
         currentChat.messages.push(responseElement);
 
-        // 设置请求超时 - 延长到5分钟（300秒）以适应慢速响应
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300000); // 300秒超时
-
         try {
           // 使用fetch API处理SSE流式响应
         const response = await fetch(apiUrl, {
@@ -591,10 +576,8 @@ export default {
           // 使用credentials: 'include'来确保在重定向过程中也发送凭证
           credentials: 'include',
           mode: 'cors',
-          signal: controller.signal
+          signal: controller.value.signal
         });
-
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -620,6 +603,13 @@ export default {
         let done = false;
 
         while (!done) {
+          // 检查是否已取消请求
+          if (controller.value.signal.aborted) {
+            reader.cancel();
+            done = true;
+            break;
+          }
+          
           const { value, done: readerDone } = await reader.read();
           done = readerDone;
           
@@ -754,7 +744,6 @@ export default {
           }
         }
         } catch (error) {
-        clearTimeout(timeoutId);
         // 处理不同类型的错误
         if (error.name === 'AbortError') {
           console.error('请求超时: API响应时间超过300秒');
@@ -785,6 +774,27 @@ export default {
       } finally {
         // 移除finally中的无条件设置loading为false
         // 确保只有在请求完成或出错时才设置loading为false
+      }
+    };
+
+    // 取消当前请求
+    const cancelRequest = () => {
+      if (controller.value) {
+        controller.value.abort();
+        loading.value = false;
+        // 移除最后添加的助手消息（如果有的话）
+        if (currentChat.messages.length > 0 && 
+            currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
+          currentChat.messages.pop();
+        }
+        // 添加一条简洁的终止提示消息
+        const cancelMessage = {
+          role: 'assistant',
+          content: language.value === 'zh' ? '对话终止' : 'Conversation terminated',
+          references: [],
+          timestamp: new Date()
+        };
+        currentChat.messages.push(cancelMessage);
       }
     };
 
@@ -945,7 +955,8 @@ export default {
       likeMessage,
       deleteMessage,
       exportChat,
-      loadMoreChats
+      loadMoreChats,
+      cancelRequest // 添加取消请求函数到返回值中
     };
   }
 };
