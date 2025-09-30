@@ -777,9 +777,29 @@ const sendMessage = async () => {
         let buffer = '';
         let eventDataLines = [];
         // rAF 滚动（统一在下方只定义一次）
-        // 打字机式渲染：每秒输出约6个字符（内容+思考总和）
-        const TOTAL_CHARS_PER_TICK = 6;
-        const TICK_MS = 1000;
+        // 打字机式渲染：更高频更小步长 → 每166ms输出1个字符（≈每秒6字）
+        const TOTAL_CHARS_PER_TICK = 1;
+        const TICK_MS = 167;
+        // 安全分割函数：尽量避免拆分复合字符（emoji/变体等）
+        const takeGraphemes = (input, count) => {
+          try {
+            if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+              const seg = new Intl.Segmenter('zh', { granularity: 'grapheme' });
+              const it = seg.segment(input)[Symbol.iterator]();
+              let taken = '';
+              let c = 0;
+              while (c < count) {
+                const { value, done } = it.next();
+                if (done || !value) break;
+                taken += value.segment;
+                c++;
+              }
+              return [taken, input.slice(taken.length)];
+            }
+          } catch (e) {}
+          // 回退：简单切分
+          return [input.slice(0, count), input.slice(count)];
+        };
         const startPacedRender = () => {
           if (renderTimer.value) return;
           renderTimer.value = setInterval(() => {
@@ -806,26 +826,24 @@ const sendMessage = async () => {
                 renderTimer.value = null;
                 return;
               }
-              // 本次tick可输出总字符数
+              // 本次tick可输出总字符数（思考优先：先把思考输出完或用完当次配额）
               let remaining = TOTAL_CHARS_PER_TICK;
 
-              // 先输出思考过程（最多占一半，若思考为空则全部给内容）
-              const thinkingBudget = Math.min(3, remaining);
-              if (thinkingRenderQueue.value && thinkingRenderQueue.value.length > 0 && thinkingBudget > 0) {
-                const thinkOut = thinkingRenderQueue.value.slice(0, thinkingBudget);
-                thinkingRenderQueue.value = thinkingRenderQueue.value.slice(thinkingBudget);
+              if (thinkingRenderQueue.value && thinkingRenderQueue.value.length > 0) {
+                const [thinkOut, restThinking] = takeGraphemes(thinkingRenderQueue.value, remaining);
+                thinkingRenderQueue.value = restThinking;
                 const lastIndex = currentChat.messages.length - 1;
                 if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
                   const prev = currentChat.messages[lastIndex].thinkingContent || '';
                   currentChat.messages[lastIndex].thinkingContent = prev + thinkOut;
                 }
-                remaining -= thinkingBudget;
+                remaining -= thinkOut.length > 0 ? 1 : 0;
               }
 
               // 再输出正式内容（剩余全部）
               if (remaining > 0 && renderQueue.value && renderQueue.value.length > 0) {
-                const contentOut = renderQueue.value.slice(0, remaining);
-                renderQueue.value = renderQueue.value.slice(remaining);
+                const [contentOut, restContent] = takeGraphemes(renderQueue.value, remaining);
+                renderQueue.value = restContent;
                 const lastIndex = currentChat.messages.length - 1;
                 if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
                   currentChat.messages[lastIndex].content += contentOut;
