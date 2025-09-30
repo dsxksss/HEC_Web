@@ -102,9 +102,9 @@ export async function autoLoginCheck() {
         
         console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
-        // 使用axios发送请求，移除User-Agent头（浏览器不允许前端设置）
+        // 使用axios发送请求
         const response = await axios.post(apiEndpoint, {}, {
-          withCredentials: true, // 相当于credentials: 'include'
+          withCredentials: true, // 发送cookie
           headers: {
             'Content-Type': 'application/json'
           }
@@ -112,7 +112,7 @@ export async function autoLoginCheck() {
         
         console.log('[AutoLogin] API请求完成，状态码:', response.status);
         
-        // axios中，成功的响应会直接返回数据，这里检查状态码是否在200-299范围内
+        // 检查状态码是否在200-299范围内
         if (response.status >= 200 && response.status < 300) {
           try {
             // axios会自动解析JSON响应，直接使用response.data
@@ -234,16 +234,22 @@ export async function login(username, password, loginType = 'user') {
         }
       });
     
-    if (response.ok) {
+    // 对于axios，检查状态码是否在200-299范围内
+    if (response.status >= 200 && response.status < 300) {
       try {
-        const data = await response.json();
+        // axios会自动解析JSON响应，直接使用response.data
+        const data = response.data;
         // 检查登录是否成功 - 增加更健壮的成功判断逻辑
         // 1. 检查标准成功标记
         const isSuccess = data.success || data.code === 0 || data.status === 'success' || data.code === '0';
         // 2. 检查是否有错误信息，如果没有错误信息也可能表示成功
-        const hasNoError = !data.error && !data.errors && !data.message; 
+        const hasNoError = !data.error && !data.errors && (!data.message || data.message.toLowerCase().includes('success')); 
+        // 3. 即使没有明确的成功标记，如果有User数据也应视为成功
+        const hasUserData = data.Data && data.Data.User;
+        // 4. 即使上述都不满足，如果数据包含用户ID也应视为成功
+        const hasUserId = data.User && data.User.Id;
         
-        if (isSuccess || hasNoError) {
+        if (isSuccess || hasNoError || hasUserData || hasUserId) {
           console.log('登录成功', data);
           
           // 登录成功后，手动设置cookie以保持登录状态
@@ -317,7 +323,9 @@ export async function logout(allSessions = true) {
       
       const [userResponse, sysResponse] = await Promise.all([userLogoutPromise, sysLogoutPromise]);
       
-      if (userResponse.ok || sysResponse.ok) {
+      // 对于axios，检查状态码是否在200-299范围内
+      if ((userResponse.status >= 200 && userResponse.status < 300) || 
+          (sysResponse.status >= 200 && sysResponse.status < 300)) {
         console.log('退出登录成功');
         return true;
       } else {
@@ -336,7 +344,8 @@ export async function logout(allSessions = true) {
         }
       });
       
-      if (response.ok) {
+      // 对于axios，检查状态码是否在200-299范围内
+      if (response.status >= 200 && response.status < 300) {
         console.log('退出登录成功');
         return true;
       } else {
@@ -375,11 +384,13 @@ export async function getUserSession(useSysApi = false) {
       }
     });
     
-    if (response.ok) {
-      const data = await response.json();
-      // 返回SessionData字段，这是用户要求的格式
-      return data.SessionData || null;
-    }
+    // 对于axios，检查状态码是否在200-299范围内
+        if (response.status >= 200 && response.status < 300) {
+          // axios会自动解析JSON响应
+          const data = response.data;
+          // 返回SessionData字段，这是用户要求的格式
+          return data.SessionData || null;
+        }
     
     return null;
   } catch (error) {
@@ -414,8 +425,10 @@ export async function renewUserSession(updateData = false, useSysApi = false) {
       }
     });
     
-    if (response.ok) {
-      const data = await response.json();
+    // 对于axios，检查状态码是否在200-299范围内
+    if (response.status >= 200 && response.status < 300) {
+      // axios会自动解析JSON响应
+      const data = response.data;
       console.log(`会话续期${updateData ? '并更新信息' : ''}成功`);
       // 返回SessionData字段，这是用户要求的格式
       return data.SessionData || null;
