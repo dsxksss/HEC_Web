@@ -353,11 +353,102 @@
       </div>
     </div>
   </div>
+
+  <!-- 登录提示对话框 -->
+  <div v-if="showLoginDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-gray-800">
+          {{ language === 'zh' ? '请先登录' : 'Please Login First' }}
+        </h3>
+        <p class="text-gray-500 mt-2">
+          {{ language === 'zh' ? '请输入您的账号密码以登录' : 'Please enter your username and password to log in' }}
+        </p>
+      </div>
+      
+      <!-- 登录类型切换Tabbar -->
+      <div class="flex mb-6 border-b">
+        <button 
+          class="flex-1 py-2 text-center font-medium transition-colors" 
+          :class="loginType === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
+          @click="loginType = 'user'"
+        >
+          {{ language === 'zh' ? '用户登录' : 'User Login' }}
+        </button>
+        <button 
+          class="flex-1 py-2 text-center font-medium transition-colors" 
+          :class="loginType === 'sys' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
+          @click="loginType = 'sys'"
+        >
+          {{ language === 'zh' ? '系统登录' : 'System Login' }}
+        </button>
+      </div>
+      
+      <!-- 登录表单 -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ language === 'zh' ? '用户名' : 'Username' }}
+          </label>
+          <input 
+            v-model="loginUsername" 
+            type="text" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+            :placeholder="language === 'zh' ? '请输入用户名' : 'Please enter username'"
+          >
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ language === 'zh' ? '密码' : 'Password' }}
+          </label>
+          <input 
+            v-model="loginPassword" 
+            type="password" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+            :placeholder="language === 'zh' ? '请输入密码' : 'Please enter password'"
+          >
+        </div>
+        <div v-if="loginError" class="text-red-500 text-sm">
+          {{ loginError }}
+        </div>
+      </div>
+      
+      <!-- 登录按钮 -->
+      <div class="space-y-4">
+        <button 
+          class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          @click="handleLogin"
+          :disabled="loginLoading"
+        >
+          <svg v-if="loginLoading" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1m3 0h10"></path>
+          </svg>
+          {{ language === 'zh' ? '登录' : 'Login' }}
+        </button>
+        <button 
+          class="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
+          @click="closeLoginDialog"
+          :disabled="loginLoading"
+        >
+          {{ language === 'zh' ? '取消' : 'Cancel' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
 import { ref, reactive, onMounted, nextTick } from 'vue';
 import { EventSourcePolyfill } from 'event-source-polyfill';
+import { checkWemolLogin, getCurrentUserInfo, autoLoginCheck, handleNotLoggedIn, login, logout } from './login.js';
 
 export default {
   name: 'App',
@@ -377,10 +468,86 @@ export default {
     const thinkingContent = ref('');
     const showThinking = ref(false);
     const controller = ref(null); // 用于取消请求的控制器
+    const showLoginDialog = ref(false); // 控制登录对话框的显示
+    const loginType = ref('user'); // 登录类型，'user' 或 'sys'
+    const loginUsername = ref(''); // 登录用户名
+    const loginPassword = ref(''); // 登录密码
+    const loginError = ref(''); // 登录错误信息
+    const loginLoading = ref(false); // 登录加载状态
+
+    // 处理登录请求
+    const handleLogin = async () => {
+      // 重置错误信息
+      loginError.value = '';
+      
+      // 简单的表单验证
+      if (!loginUsername.value.trim()) {
+        loginError.value = language.value === 'zh' ? '请输入用户名' : 'Please enter username';
+        return;
+      }
+      if (!loginPassword.value.trim()) {
+        loginError.value = language.value === 'zh' ? '请输入密码' : 'Please enter password';
+        return;
+      }
+      
+      // 设置登录加载状态
+      loginLoading.value = true;
+      
+      try {
+        // 调用登录函数
+        const success = await login(loginUsername.value.trim(), loginPassword.value.trim(), loginType.value);
+        
+        if (success) {
+          // 登录成功，检查用户是否真的登录了
+          const isLoggedIn = await autoLoginCheck();
+          if (isLoggedIn) {
+            // 获取用户信息
+            const userInfo = getCurrentUserInfo();
+            console.log('登录成功，用户信息:', userInfo);
+            
+            // 关闭登录对话框
+            showLoginDialog.value = false;
+            
+            // 重置登录表单
+            resetLoginForm();
+          } else {
+            loginError.value = language.value === 'zh' ? '登录失败，请检查您的账号密码' : 'Login failed, please check your username and password';
+          }
+        } else {
+          loginError.value = language.value === 'zh' ? '登录失败，请检查您的账号密码' : 'Login failed, please check your username and password';
+        }
+      } catch (error) {
+        console.error('登录过程中发生错误:', error);
+        loginError.value = error.message || (language.value === 'zh' ? '登录失败，请稍后再试' : 'Login failed, please try again later');
+      } finally {
+        // 重置登录加载状态
+        loginLoading.value = false;
+      }
+    };
+    
+    // 重置登录表单
+    const resetLoginForm = () => {
+      loginUsername.value = '';
+      loginPassword.value = '';
+      loginError.value = '';
+      loginType.value = 'user';
+    };
 
     // 初始化加载历史聊天记录
-    onMounted(() => {
+    onMounted(async () => {
       loadChatHistory();
+      
+      // 检查wemol平台登录状态
+      const isLoggedIn = await autoLoginCheck();
+      if (!isLoggedIn) {
+        // 如果未登录，显示登录提示对话框
+        console.log('用户未登录，显示登录提示对话框');
+        showLoginDialog.value = true;
+      } else {
+        // 用户已登录，获取用户信息
+        const userInfo = getCurrentUserInfo();
+        console.log('当前登录用户信息:', userInfo);
+      }
     });
 
     // 加载聊天历史
@@ -508,6 +675,13 @@ export default {
 
       const question = userInput.value.trim();
       
+      // 在发送问题前先检查登录状态
+      const isLoggedIn = checkWemolLogin();
+      if (!isLoggedIn) {
+        showLoginDialog.value = true;
+        return;
+      }
+
       // 添加用户消息到当前对话
       currentChat.messages.push({
         role: 'user',
@@ -556,18 +730,20 @@ export default {
         };
         
         currentChat.messages.push(responseElement);
-
-        try {
-          // 使用fetch API处理SSE流式响应
+          
+        // 使用fetch API处理SSE流式响应
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
+            // 注意：根据用户要求，这里使用相对路径，项目会嵌入到wemol平台
+            // 所以不需要设置Authorization头，而是依赖cookie凭证
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'X-Requested-With': 'XMLHttpRequest'
           },
+          // 确保发送cookie凭证
+          credentials: 'include',
           body: JSON.stringify({
             stream: true,
             messages: messages,
@@ -743,37 +919,55 @@ export default {
             }
           }
         }
-        } catch (error) {
-        // 处理不同类型的错误
-        if (error.name === 'AbortError') {
-          console.error('请求超时: API响应时间超过300秒');
-          throw new Error('请求超时，请检查网络连接或稍后再试');
-        } else if (error.message.includes('Failed to fetch')) {
-          console.error('网络请求失败:', error);
-          throw new Error('网络连接失败，请检查您的网络设置或稍后再试');
-        } else {
-          throw error;
-        }
-      }
       } catch (error) {
         console.error('发送消息失败:', error);
         loading.value = false;
         
-        // 添加更详细的错误消息
-        const errorMessage = {
-          role: 'assistant',
-          content: language.value === 'zh' 
-            ? `抱歉，我暂时无法为您提供答案。错误信息：${error.message}。请稍后再试。` 
-            : `Sorry, I cannot provide an answer for you at the moment. Error: ${error.message}. Please try again later.`,
-          references: [],
-          timestamp: new Date()
-        };
-        currentChat.messages.push(errorMessage);
-        // 只有在错误情况下才设置loading为false
-        loading.value = false;
+        // 处理不同类型的错误
+        if (error.name === 'AbortError') {
+          console.error('请求超时: API响应时间超过300秒');
+          // 添加错误消息
+          const errorMessage = {
+            role: 'assistant',
+            content: language.value === 'zh' 
+              ? `请求超时，请检查网络连接或稍后再试。` 
+              : `Request timed out. Please check your network connection or try again later.`,
+            references: [],
+            timestamp: new Date()
+          };
+          currentChat.messages.push(errorMessage);
+        } else if (error.message.includes('Failed to fetch')) {
+          console.error('网络请求失败:', error);
+          // 添加错误消息
+          const errorMessage = {
+            role: 'assistant',
+            content: language.value === 'zh' 
+              ? `网络连接失败，请检查您的网络设置或稍后再试。` 
+              : `Network connection failed. Please check your network settings or try again later.`,
+            references: [],
+            timestamp: new Date()
+          };
+          currentChat.messages.push(errorMessage);
+        } else if (error.message && error.message.includes('未登录')) {
+          // 检查是否是登录错误
+          showLoginDialog.value = true;
+        } else {
+          // 添加更详细的错误消息
+          const errorMessage = {
+            role: 'assistant',
+            content: language.value === 'zh' 
+              ? `抱歉，我暂时无法为您提供答案。错误信息：${error.message}。请稍后再试。` 
+              : `Sorry, I cannot provide an answer for you at the moment. Error: ${error.message}. Please try again later.`,
+            references: [],
+            timestamp: new Date()
+          };
+          currentChat.messages.push(errorMessage);
+        }
       } finally {
-        // 移除finally中的无条件设置loading为false
-        // 确保只有在请求完成或出错时才设置loading为false
+        // 确保loading状态被正确重置
+        if (loading.value) {
+          loading.value = false;
+        }
       }
     };
 
@@ -892,6 +1086,11 @@ export default {
       }
     };
 
+    // 关闭登录对话框
+    const closeLoginDialog = () => {
+      showLoginDialog.value = false;
+    };
+
     // 导出对话
     const exportChat = () => {
       if (currentChat.messages.length === 0) {
@@ -956,7 +1155,15 @@ export default {
       deleteMessage,
       exportChat,
       loadMoreChats,
-      cancelRequest // 添加取消请求函数到返回值中
+      cancelRequest,
+      showLoginDialog,
+      closeLoginDialog,
+      loginType,
+      loginUsername,
+      loginPassword,
+      loginError,
+      loginLoading,
+      handleLogin
     };
   }
 };
