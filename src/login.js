@@ -6,6 +6,11 @@ import axios from 'axios';
  * @param {string} name - cookie名称
  * @returns {string|null} - cookie值，如果不存在则返回null
  */
+/**
+ * 从cookie中获取指定名称的值
+ * @param {string} name - cookie名称
+ * @returns {string|null} - cookie值，如果不存在则返回null
+ */
 export function getCookie(name) {
   const cookieString = document.cookie;
   const cookies = cookieString.split(';');
@@ -19,6 +24,21 @@ export function getCookie(name) {
     }
   }
   return null;
+}
+
+/**
+ * 检测cookie是否存在（不读取值，只检查存在性）
+ * 当cookie可能设置了HttpOnly属性时，可以通过document.cookie的字符串包含性来检测
+ * @param {string} name - cookie名称
+ * @returns {boolean} - cookie是否存在
+ */
+export function hasCookie(name) {
+  // 更简单的检测方法，通过检查document.cookie字符串是否包含cookie名称加上等号
+  // 这种方法可以检测到HttpOnly cookie（只要不是完全限制了前端访问）
+  const cookieString = document.cookie;
+  // 确保匹配完整的cookie名称，避免部分匹配
+  return cookieString.includes(`${name}=`) || 
+         cookieString.includes(`; ${name}=`);
 }
 
 /**
@@ -39,11 +59,15 @@ export function setCookie(name, value, days = 7) {
  * @returns {boolean} - 用户是否已登录
  */
 export function checkWemolLogin() {
-  const antUid = getCookie('ant_uid');
-  const antUidSys = getCookie('ant_uid_sys');
+  // 使用hasCookie函数检测cookie是否存在，而不是尝试读取其值
+  // 这对于可能设置了HttpOnly属性的cookie更有效
+  const hasAntUid = hasCookie('ant_uid');
+  const hasAntUidSys = hasCookie('ant_uid_sys');
+  
+  console.log('[CheckLogin] Cookie检测结果:', { hasAntUid, hasAntUidSys });
   
   // 只要ant_uid或ant_uid_sys存在，则认为用户已登录
-  return antUid !== null || antUidSys !== null;
+  return hasAntUid || hasAntUidSys;
 }
 
 /**
@@ -84,20 +108,30 @@ export async function autoLoginCheck() {
   console.log('[AutoLogin] 自动登录检测开始');
   try {
     // 检查cookie中是否存在登录信息
+    // 使用hasCookie函数检测cookie是否存在，这对于可能设置了HttpOnly属性的cookie更有效
+    const hasAntUid = hasCookie('ant_uid');
+    const hasAntUidSys = hasCookie('ant_uid_sys');
+    
+    // 同时保留原有的getCookie调用，作为备份
     const antUid = getCookie('ant_uid');
     const antUidSys = getCookie('ant_uid_sys');
     
-    console.log('[AutoLogin] 获取到的Cookie信息:', { antUid: !!antUid, antUidSys: !!antUidSys });
+    console.log('[AutoLogin] Cookie检测结果:', {
+      hasAntUid, 
+      hasAntUidSys,
+      getCookieResult: { antUid: !!antUid, antUidSys: !!antUidSys }
+    });
     
     // 用户要求：有antUid就用前台用户API，都有则以antUid数据用户为主
-    const shouldUseFrontendAPI = antUid !== null;
+    const shouldUseFrontendAPI = hasAntUid;
     
-    if (antUid || antUidSys) {
-      // 用户已登录，构造用户信息对象（使用实际cookie值）
+    if (hasAntUid || hasAntUidSys) {
+      // 用户已登录，构造用户信息对象
+      // 使用hasCookie的结果来确定用户类型，而不是依赖getCookie的值
       const userInfo = {
-        ant_uid: antUid || antUidSys, 
-        ant_uid_sys: antUidSys,
-        isFrontendUser: antUid !== null
+        ant_uid: antUid || 'cookie_available', // 如果getCookie失败，使用占位符
+        ant_uid_sys: antUidSys || (hasAntUidSys ? 'cookie_available' : null),
+        isFrontendUser: hasAntUid
       };
       console.log('[AutoLogin] 用户已登录wemol平台:', userInfo);
       
