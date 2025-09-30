@@ -684,7 +684,7 @@ const sendMessage = async () => {
         showLoginDialog.value = true;
         return;
       }
-
+      let accumulatedReferences = [];
       const question = userInput.value.trim();
       currentChat.messages.push({
         role: 'user',
