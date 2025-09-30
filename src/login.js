@@ -102,37 +102,69 @@ export async function autoLoginCheck() {
         
         console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
+        // 参考Python代码实现，添加User-Agent请求头
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           credentials: 'include',
           headers: {
-            'Content-Type': 'application/json',
+            'User-Agent': navigator.userAgent // 使用浏览器的User-Agent
           }
         });
         
         console.log('[AutoLogin] API请求完成，状态码:', response.status);
         
         if (response.ok) {
-          const sessionData = await response.json();
-          console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
-          // 将会话数据中的用户信息合并到userInfo对象中
-          if (sessionData && sessionData.SessionData) {
-            // 更新用户信息，包括Name字段
-            Object.assign(userInfo, sessionData.SessionData);
+          try {
+            const sessionData = await response.json();
+            console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
+            
+            // 参考Python代码实现，检查API返回是否有错误状态
+            const isError = sessionData.Error || sessionData.error || sessionData.errors || sessionData.message;
+            
+            if (isError) {
+              console.error('[AutoLogin] API返回错误信息:', isError);
+              console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误)');
+              return false;
+            }
+            
+            // 将会话数据中的用户信息合并到userInfo对象中
+            if (sessionData && sessionData.Data && sessionData.Data.User) {
+              // 更新用户信息
+              Object.assign(userInfo, sessionData.Data.User);
+              
+              // 参考Python代码实现，检查用户状态是否为enabled
+              if (userInfo.status === 'enabled') {
+                console.log('[AutoLogin] 用户状态验证通过，状态为enabled');
+                console.log('[AutoLogin] 自动登录检测完成，结果: true');
+                return true;
+              } else {
+                console.error('[AutoLogin] 用户状态不是enabled，当前状态:', userInfo.status);
+                console.log('[AutoLogin] 自动登录检测完成，结果: false (用户状态不正确)');
+                return false;
+              }
+            } else if (sessionData && sessionData.SessionData) {
+              // 兼容原有格式
+              Object.assign(userInfo, sessionData.SessionData);
+              console.log('[AutoLogin] 自动登录检测完成，结果: true');
+              return true;
+            }
+            
+            console.log('[AutoLogin] 自动登录检测完成，结果: true');
+            return true;
+          } catch (jsonError) {
+            console.error('[AutoLogin] JSON解析失败:', jsonError);
+            console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败)');
+            return false;
           }
-          console.log('[AutoLogin] 自动登录检测完成，结果: true');
-          return true;
         } else {
           console.error('[AutoLogin] 会话验证失败，API返回非成功状态:', response.status);
-          // API返回非成功状态时，也尝试返回true，因为cookie存在
-          console.log('[AutoLogin] 自动登录检测完成，结果: true (基于cookie存在)');
-          return true;
+          console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回非成功状态)');
+          return false;
         }
       } catch (sessionError) {
         console.error('[AutoLogin] 会话验证请求失败:', sessionError);
-        // 请求失败时，不立即判定未登录，而是尝试返回用户信息
-        console.log('[AutoLogin] 自动登录检测完成，结果: true (请求失败但cookie存在)');
-        return true;
+        console.log('[AutoLogin] 自动登录检测完成，结果: false (请求失败)');
+        return false;
       }
     } else {
       // 用户未登录
