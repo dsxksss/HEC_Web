@@ -98,8 +98,18 @@
           <div class="flex items-center gap-3">
             <!-- 用户信息和退出按钮 -->
             <div v-if="currentUserInfo" class="flex items-center gap-2 mr-2">
-              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700">
-                {{ getInitials(currentUserInfo.ant_uid) }}
+              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700 overflow-hidden relative">
+                <img 
+                  :src="`/api/user/avatar/${currentUserInfo.ant_uid}`" 
+                  alt="用户头像" 
+                  class="w-full h-full object-cover"
+                  @error="onAvatarError"
+                  ref="avatarImage"
+                >
+                <!-- 当图片加载失败时，会显示下面的首字母作为后备 -->
+                <span class="absolute inset-0 flex items-center justify-center">
+                  {{ getInitials(currentUserInfo.ant_uid) }}
+                </span>
               </div>
               <span class="text-sm text-gray-700">{{ currentUserInfo.Name || `用户${currentUserInfo.ant_uid}` }}</span>
               <button 
@@ -707,8 +717,8 @@ export default {
 
       try {
         // 准备API请求参数
-        // 使用相对路径，利用Vite的代理配置处理跨域和重定向
-        const apiUrl = '/api/v1/chat/completions';
+        // 使用完整URL，直接请求第三方服务
+        const apiUrl = 'https://chatai.dyg.com.cn/api/v1/chat/completions';
         const apiKey = 'fastgpt-mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC';
         
         // 构建消息历史
@@ -1172,6 +1182,13 @@ export default {
       showLoginDialog.value = false;
     };
 
+    // 处理头像加载失败
+    const onAvatarError = (event) => {
+      // 设置图片为透明，这样下面的文字就能显示出来
+      event.target.style.opacity = '0';
+      console.log('用户头像加载失败，显示首字母代替');
+    };
+
     // 导出对话功能已移除
 
     // 加载更多聊天记录
@@ -1212,6 +1229,7 @@ export default {
       cancelRequest,
       showLoginDialog,
       closeLoginDialog,
+      onAvatarError,
       loginType,
       loginUsername,
       loginPassword,
