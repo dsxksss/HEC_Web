@@ -21,6 +21,19 @@ export function getCookie(name) {
 }
 
 /**
+ * 设置cookie
+ * @param {string} name - cookie名称
+ * @param {string} value - cookie值
+ * @param {number} days - 过期天数
+ */
+export function setCookie(name, value, days = 7) {
+  const date = new Date();
+  date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+  const expires = `expires=${date.toUTCString()}`;
+  document.cookie = `${name}=${encodeURIComponent(value)};${expires};path=/;`;
+}
+
+/**
  * 检查用户是否已登录wemol平台
  * @returns {boolean} - 用户是否已登录
  */
@@ -163,6 +176,23 @@ export async function login(username, password, loginType = 'user') {
         
         if (isSuccess || hasNoError) {
           console.log('登录成功', data);
+          
+          // 登录成功后，手动设置cookie以保持登录状态
+          // 根据loginType设置相应的cookie
+          if (loginType === 'sys') {
+            // 后台用户，设置ant_uid_sys
+            if (data.Data && data.Data.User && data.Data.User.Id) {
+              setCookie('ant_uid_sys', data.Data.User.Id.toString(), 7);
+            }
+          } else {
+            // 前台用户，设置ant_uid
+            if (data.Data && data.Data.User && data.Data.User.Id) {
+              setCookie('ant_uid', data.Data.User.Id.toString(), 7);
+              // 同时也设置ant_uid_sys（如果需要前后台用户同时存在）
+              setCookie('ant_uid_sys', data.Data.User.Id.toString(), 7);
+            }
+          }
+          
           return true;
         } else {
           console.error('登录失败:', data.message || '未知错误');
@@ -171,6 +201,11 @@ export async function login(username, password, loginType = 'user') {
       } catch (jsonError) {
         // 如果JSON解析失败但响应状态是200，也视为登录成功
         console.warn('登录响应JSON解析失败，但请求状态为成功，视为登录成功:', jsonError);
+        
+        // 即使JSON解析失败，也尝试设置一个临时cookie以保持登录状态
+        const cookieName = loginType === 'sys' ? 'ant_uid_sys' : 'ant_uid';
+        setCookie(cookieName, 'temp_login_success', 1);
+        
         return true;
       }
     } else {
