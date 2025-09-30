@@ -133,8 +133,8 @@ export async function login(username, password, loginType = 'user') {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        username,
-        password
+        Name: username,
+        Passwd: password
       })
     });
     
