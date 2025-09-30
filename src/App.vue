@@ -779,7 +779,7 @@ const sendMessage = async () => {
 
             const line = rawLine.replace(/\r$/, '');
 
-            // 空行 -> 完整事件
+            // 空行 -> 完整事件（兼容某些服务端会将一个事件分多行 data: 发送）
             if (line === '') {
               if (eventDataLines.length > 0) {
                 const dataStr = eventDataLines.join('');
@@ -855,7 +855,67 @@ const sendMessage = async () => {
 
             // 聚合 data: 行
             if (line.startsWith('data:')) {
-              eventDataLines.push(line.slice(5).trimStart());
+              const dataPart = line.slice(5).trimStart();
+              // 立即模式：绝大多数 LLM 流每个事件只包含一条 data 行
+              // 为了更快的 UI 刷新，这里直接解析当前 data 行
+              if (dataPart === '[DONE]') {
+                chatHistory.value.push({
+                  question,
+                  messages: currentChat.messages.map(msg => ({
+                    ...msg,
+                    content: msg.content,
+                    thinkingContent: msg.thinkingContent,
+                    references: msg.references || []
+                  })),
+                  timestamp: new Date()
+                });
+                if (chatHistory.value.length > 10) chatHistory.value.shift();
+                saveChatHistory();
+                loading.value = false;
+                return;
+              }
+
+              // 如果是 JSON 片段，尝试直接解析
+              try {
+                const parsed = JSON.parse(dataPart);
+                const delta = parsed.choices?.[0]?.delta || {};
+                const content = delta.content || '';
+                const reasoning = delta.reasoning_content || '';
+
+                if (reasoning === '<think>') {
+                  isInThinking = true;
+                  accumulatedThinking = '';
+                  hasThinkingStarted = true;
+                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  continue;
+                } else if (reasoning === '</think>') {
+                  isInThinking = false;
+                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  continue;
+                }
+
+                if (isInThinking && reasoning) {
+                  accumulatedThinking += reasoning;
+                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  nextTick(scrollToBottom);
+                  if (loading.value) loading.value = false;
+                }
+
+                if (content) {
+                  accumulatedContent += content;
+                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  nextTick(scrollToBottom);
+                  if (loading.value) loading.value = false;
+                }
+
+                if (delta.references) {
+                  accumulatedReferences = delta.references;
+                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                }
+              } catch (e) {
+                // 如果本行不是完整 JSON（例如服务端将一个事件拆成多行 data），则退回到聚合模式
+                eventDataLines.push(dataPart);
+              }
             }
           }
         }
