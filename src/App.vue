@@ -106,10 +106,6 @@
                   @error="onAvatarError"
                   ref="avatarImage"
                 >
-                <!-- 当图片加载失败时，会显示下面的首字母作为后备 -->
-                <span class="absolute inset-0 flex items-center justify-center">
-                  {{ getInitials(currentUserInfo.ant_uid) }}
-                </span>
               </div>
               <span class="text-sm text-gray-700">{{ currentUserInfo.Name || `用户${currentUserInfo.ant_uid}` }}</span>
               <button 
