@@ -684,14 +684,23 @@ const sendMessage = async () => {
         showLoginDialog.value = true;
         return;
       }
+
+      // ===== 声明所有状态 =====
+      let accumulatedContent = '';
+      let accumulatedThinking = '';
       let accumulatedReferences = [];
+      let isInThinking = false;
+      let hasThinkingStarted = false;
+
       const question = userInput.value.trim();
+
       currentChat.messages.push({
         role: 'user',
         content: question,
         timestamp: new Date()
       });
       nextTick(() => scrollToBottom());
+
       userInput.value = '';
       loading.value = true;
 
@@ -703,12 +712,6 @@ const sendMessage = async () => {
         references: [],
         timestamp: new Date()
       });
-
-      // 累积变量
-      let accumulatedContent = '';
-      let accumulatedThinking = '';
-      let isInThinking = false;
-      let hasThinkingStarted = false;
 
       const messages = [
         { role: 'user', content: '这是一个模拟开场白' },
@@ -776,71 +779,53 @@ const sendMessage = async () => {
               }
 
               try {
-                const parsed = JSON.parse(dataStr);
-                const delta = parsed.choices?.[0]?.delta || {};
-                const content = delta.content || '';
-                const reasoning = delta.reasoning_content || '';
+          const parsed = JSON.parse(dataStr);
+          const delta = parsed.choices?.[0]?.delta || {};
+          const content = delta.content || '';
+          const reasoning = delta.reasoning_content || '';
 
-                // ===== 处理思考模式 =====
-                if (reasoning === '<think>') {
-                  isInThinking = true;
-                  accumulatedThinking = '';
-                  hasThinkingStarted = true;
-                  continue;
-                } else if (reasoning === '</think>') {
-                  isInThinking = false;
-                  // 思考完成，自动折叠（不清空，保留内容）
-                  // 移除当前消息的展开状态
-                  expandedThinking.value.delete(currentChat.messages.length - 1);
-                  continue;
-                }
+          // ===== 1. 处理思考模式 =====
+          if (reasoning === '<think>') {
+            isInThinking = true;
+            accumulatedThinking = '';
+            hasThinkingStarted = true;
+            // 更新消息（显示空思考内容）
+            updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+            continue;
+          } else if (reasoning === '</think>') {
+            isInThinking = false;
+            // 更新消息（保留思考内容）
+            updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+            continue;
+          }
 
-                if (isInThinking && reasoning) {
-                  accumulatedThinking += reasoning;
-                  // 更新消息（包含 thinkingContent）
-                  currentChat.messages = [
-                    ...currentChat.messages.slice(0, -1),
-                    {
-                      role: 'assistant',
-                      content: accumulatedContent,
-                      thinkingContent: accumulatedThinking,
-                      references: accumulatedReferences,
-                      timestamp: currentChat.messages[currentChat.messages.length - 1].timestamp
-                    }
-                  ];
-                  // 如果是第一次收到思考内容，自动展开
-                  if (hasThinkingStarted && !expandedThinking.value.has(currentChat.messages.length - 1)) {
-                    expandedThinking.value.add(currentChat.messages.length - 1);
-                  }
-                  nextTick(scrollToBottom);
-                  continue;
-                }
+          if (isInThinking && reasoning) {
+            accumulatedThinking += reasoning;
+            updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+            nextTick(scrollToBottom);
+            // 👇 关键：收到思考内容就关闭 loading
+            if (loading.value) loading.value = false;
+            continue;
+          }
 
-                // ===== 处理正式回答 =====
-                if (content) {
-                  accumulatedContent += content;
-                  currentChat.messages = [
-                    ...currentChat.messages.slice(0, -1),
-                    {
-                      role: 'assistant',
-                      content: accumulatedContent,
-                      thinkingContent: accumulatedThinking, // 保留思考内容
-                      references: accumulatedReferences,
-                      timestamp: currentChat.messages[currentChat.messages.length - 1].timestamp
-                    }
-                  ];
-                  if (loading.value) loading.value = false;
-                  nextTick(scrollToBottom);
-                }
+          // ===== 2. 处理正式回答 =====
+          if (content) {
+            accumulatedContent += content;
+            updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+            nextTick(scrollToBottom);
+            // 👇 关键：收到回答内容就关闭 loading
+            if (loading.value) loading.value = false;
+          }
 
-                // 处理 references
-                if (delta.references) {
-                  accumulatedReferences = delta.references;
-                }
+          // 处理 references
+          if (delta.references) {
+            accumulatedReferences = delta.references;
+            updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+          }
 
-              } catch (e) {
-                console.error('JSON parse error:', e, dataStr);
-              }
+        } catch (e) {
+          console.error('Parse error:', e, dataStr);
+        }
             }
           }
         }
@@ -861,6 +846,27 @@ const sendMessage = async () => {
         loading.value = false;
       }
     };
+
+    const updateAssistantMessage = (content, thinking, references) => {
+  if (currentChat.messages.length === 0) return;
+  
+  const lastIndex = currentChat.messages.length - 1;
+  const lastMessage = currentChat.messages[lastIndex];
+  
+  if (lastMessage.role === 'assistant') {
+    // 替换整个数组，确保响应式更新
+    currentChat.messages = [
+      ...currentChat.messages.slice(0, lastIndex),
+      {
+        ...lastMessage,
+        content,
+        thinkingContent: thinking,
+        references
+      }
+    ];
+  }
+};
+
     // 取消当前请求
     const cancelRequest = () => {
       if (controller.value) {
