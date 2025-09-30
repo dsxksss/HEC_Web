@@ -500,6 +500,11 @@ export default {
     const loginError = ref(''); // 登录错误信息
     const loginLoading = ref(false); // 登录加载状态
     const currentUserInfo = ref(null); // 当前登录用户信息
+    // 前端“打字机式”节流渲染（每秒输出固定字数）
+    const renderQueue = ref('');
+    const renderTimer = ref(null);
+    const streamEnded = ref(false);
+    const pendingQuestion = ref('');
 
     // 处理登录请求
     const handleLogin = async () => {
@@ -707,6 +712,11 @@ const sendMessage = async () => {
       let hasThinkingStarted = false;
 
       const question = userInput.value.trim();
+      // 初始化节流渲染上下文
+      pendingQuestion.value = question;
+      renderQueue.value = '';
+      if (renderTimer.value) { clearInterval(renderTimer.value); renderTimer.value = null; }
+      streamEnded.value = false;
 
       currentChat.messages.push({
         role: 'user',
@@ -763,7 +773,50 @@ const sendMessage = async () => {
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let eventDataLines = [];
-        // 使用 rAF 合并滚动，避免每 token 强制布局
+        // rAF 滚动（统一在下方只定义一次）
+        // 打字机式渲染：每秒输出2个字符
+        const CHARS_PER_TICK = 2;
+        const TICK_MS = 1000;
+        const startPacedRender = () => {
+          if (renderTimer.value) return;
+          renderTimer.value = setInterval(() => {
+            try {
+              // 如果无内容待输出
+              if (!renderQueue.value || renderQueue.value.length === 0) {
+                // 若后端已结束且队列空，执行最终保存
+                if (streamEnded.value) {
+                  chatHistory.value.push({
+                    question: pendingQuestion.value,
+                    messages: currentChat.messages.map(msg => ({
+                      ...msg,
+                      content: msg.content,
+                      thinkingContent: msg.thinkingContent,
+                      references: msg.references || []
+                    })),
+                    timestamp: new Date()
+                  });
+                  if (chatHistory.value.length > 10) chatHistory.value.shift();
+                  saveChatHistory();
+                  streamEnded.value = false;
+                }
+                clearInterval(renderTimer.value);
+                renderTimer.value = null;
+                return;
+              }
+              const out = renderQueue.value.slice(0, CHARS_PER_TICK);
+              renderQueue.value = renderQueue.value.slice(CHARS_PER_TICK);
+              // 追加到最后一条助手消息
+              const lastIndex = currentChat.messages.length - 1;
+              if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
+                currentChat.messages[lastIndex].content += out;
+                scheduleScroll();
+              }
+            } catch (e) {
+              console.error('打字机式渲染错误:', e);
+            }
+          }, TICK_MS);
+        };
+        // 使用 rAF 合并滚动，避免每 token 强制布局（定义一次）
         let scrollScheduled = false;
         const scheduleScroll = () => {
           if (scrollScheduled) return;
@@ -796,19 +849,11 @@ const sendMessage = async () => {
                 eventDataLines = [];
 
                 if (dataStr === '[DONE]') {
-                  chatHistory.value.push({
-                    question,
-                    messages: currentChat.messages.map(msg => ({
-                      ...msg,
-                      content: msg.content,
-                      thinkingContent: msg.thinkingContent,
-                      references: msg.references || []
-                    })),
-                    timestamp: new Date()
-                  });
-                  if (chatHistory.value.length > 10) chatHistory.value.shift();
-                  saveChatHistory();
+                  // 仅标记结束，等待前端队列清空后统一保存
+                  streamEnded.value = true;
                   loading.value = false;
+                  // 若无队列待输出，立即触发一次渲染循环以保存
+                  startPacedRender();
                   return;
                 }
 
@@ -841,9 +886,9 @@ const sendMessage = async () => {
 
                   // ===== 2. 处理正式回答 =====
                   if (content) {
-                    accumulatedContent += content;
-                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                    scheduleScroll();
+                    // 将新增内容推入前端渲染队列，按固定速率输出
+                    renderQueue.value += content;
+                    startPacedRender();
                     if (loading.value) loading.value = false;
                   }
 
@@ -869,19 +914,9 @@ const sendMessage = async () => {
               // 立即模式：绝大多数 LLM 流每个事件只包含一条 data 行
               // 为了更快的 UI 刷新，这里直接解析当前 data 行
               if (dataPart === '[DONE]') {
-                chatHistory.value.push({
-                  question,
-                  messages: currentChat.messages.map(msg => ({
-                    ...msg,
-                    content: msg.content,
-                    thinkingContent: msg.thinkingContent,
-                    references: msg.references || []
-                  })),
-                  timestamp: new Date()
-                });
-                if (chatHistory.value.length > 10) chatHistory.value.shift();
-                saveChatHistory();
+                streamEnded.value = true;
                 loading.value = false;
+                startPacedRender();
                 return;
               }
 
@@ -912,9 +947,8 @@ const sendMessage = async () => {
                 }
 
                 if (content) {
-                  accumulatedContent += content;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  scheduleScroll();
+                  renderQueue.value += content;
+                  startPacedRender();
                   if (loading.value) loading.value = false;
                 }
 
@@ -946,6 +980,7 @@ const sendMessage = async () => {
         loading.value = false;
         // 清理控制器
         controller.value = null;
+        // 若还有未清空的渲染队列，让计时器自行收尾
       }
     };
 
@@ -979,6 +1014,10 @@ const updateAssistantMessage = (content, thinking, references) => {
           controller.value.abort();
         }
         loading.value = false;
+        // 停止前端节流渲染并清空队列
+        if (renderTimer.value) { clearInterval(renderTimer.value); renderTimer.value = null; }
+        renderQueue.value = '';
+        streamEnded.value = false;
         // 移除最后添加的助手消息（如果有的话）
         if (currentChat.messages.length > 0 && 
             currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
