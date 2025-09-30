@@ -10,6 +10,7 @@
           </div>
           <h1 class="text-lg font-bold text-gray-800">药剂综合大模型</h1>
         </div>
+        
         <!-- 新对话按钮 -->
         <div class="flex gap-2">
           <button 
@@ -32,6 +33,7 @@
           </button>
         </div>
       </div>
+      
       <!-- 聊天历史列表 -->
       <div class="flex-1 overflow-y-auto p-3 space-y-2">
         <div 
@@ -64,6 +66,7 @@
             </button>
           </div>
         </div>
+        
         <!-- 加载更多 -->
         <div v-if="chatHistory.length > 5" class="text-center py-4">
           <button 
@@ -115,6 +118,7 @@
             </div>
           </div>
         </div>
+        
         <!-- 语言选择卡片 -->
         <div class="mt-4 p-3 bg-gray-50 rounded-lg">
           <div class="flex items-center gap-2">
@@ -127,6 +131,7 @@
               <option value="zh">中文</option>
               <option value="en">English</option>
             </select>
+            
           </div>
         </div>
       </div>
@@ -148,6 +153,7 @@
                   : 'Hello, I am a pharmaceutical formulation vertical large model based on the group\'s local deployment of DeepSeek-R1. This application is suitable for general knowledge and cutting-edge research questions in pharmaceutics. The following question templates are provided for reference:' 
                 }}
               </p>
+              
               <!-- 示例问题 -->
               <div class="space-y-3">
                 <div>
@@ -181,147 +187,157 @@
         </div>
 
         <!-- 用户和助手的消息 -->
-        <template v-for="(message, index) in currentChat.messages" :key="index">
-          <div 
-            class="flex gap-4" 
-            :class="message.role === 'user' ? 'justify-end' : ''"
-          >
-            <template v-if="message.role === 'assistant'">
-              <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                <span class="text-white font-bold text-sm">HEC</span>
-              </div>
-            </template>
-            
-            <div 
-              class="max-w-[80%]"
-              :class="message.role === 'user' ? 'order-1' : 'order-2 flex-1'"
-            >
-              <template v-if="loading && index === currentChat.messages.length - 1">
-                <!-- 加载状态 - 思考动画 -->
-                <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm message-appear">
-                  <div class="thinking-container">
-                    <div class="thinking-dot"></div>
-                    <div class="thinking-dot"></div>
-                    <div class="thinking-dot"></div>
-                    <span class="text-sm text-gray-500 ml-2">{{ language === 'zh' ? '正在思考中...' : 'Thinking...' }}</span>
-                  </div>
+<template v-for="(message, index) in currentChat.messages" :key="index">
+  <div 
+    class="flex gap-4" 
+    :class="message.role === 'user' ? 'justify-end' : ''"
+  >
+    <template v-if="message.role === 'assistant'">
+      <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-bold text-sm">HEC</span>
+      </div>
+    </template>
+    
+    <div 
+      class="max-w-[80%]"
+      :class="message.role === 'user' ? 'order-1' : 'order-2 flex-1'"
+    >
+      <template v-if="loading && index === currentChat.messages.length - 1">
+        <!-- 加载状态 - 思考动画 -->
+        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm message-appear">
+          <div class="thinking-container">
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+            <span class="text-sm text-gray-500 ml-2">{{ language === 'zh' ? '正在思考中...' : 'Thinking...' }}</span>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div 
+          class="p-3 rounded-xl border shadow-sm group relative"
+          :class="message.role === 'user' 
+            ? 'bg-blue-600 text-white border-blue-600' 
+            : 'bg-white border-gray-200'"
+        >
+          <!-- 思考过程手风琴 -->
+          <div v-if="message.thinkingContent" class="mb-1">
+            <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-all">
+              <button 
+                @click="toggleThinking(index)"
+                class="w-full px-3 py-2 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-between text-left"
+              >
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                  </svg>
+                  <span class="text-sm font-medium text-gray-700">思考过程</span>
+                  <span class="text-xs text-gray-500">({{ message.thinkingContent.length }} 字符)</span>
                 </div>
-              </template>
-              <template v-else>
-                <div 
-                  class="p-2.5 rounded-xl border shadow-sm group relative"
-                  :class="message.role === 'user' 
-                    ? 'bg-blue-600 text-white border-blue-600' 
-                    : 'bg-white border-gray-200'"
+                <svg 
+                  class="w-4 h-4 text-gray-600 transition-transform"
+                  :class="expandedThinking.has(index) ? 'rotate-180' : ''"
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
                 >
-                  <!-- 思考过程手风琴 -->
-                  <div v-if="message.thinkingContent" class="mb-1">
-                    <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-all">
-                      <button 
-                        @click="toggleThinking(index)"
-                        class="w-full px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-between text-left"
-                      >
-                        <div class="flex items-center gap-2">
-                          <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                          </svg>
-                          <span class="text-xs font-medium text-gray-600">思考过程</span>
-                          <span class="text-[10px] text-gray-400">({{ message.thinkingContent.length }} 字符)</span>
-                        </div>
-                        <svg 
-                          class="w-3.5 h-3.5 text-gray-500 transition-transform"
-                          :class="expandedThinking.has(index) ? 'rotate-180' : ''"
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
-                      </button>
-                      <div v-show="expandedThinking.has(index)" class="p-2.5 bg-white transition-all duration-200">
-                        <div class="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed font-mono">
-                          {{ message.thinkingContent }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <p v-html="formatMessage(message.content)" class="whitespace-pre-wrap leading-relaxed text-sm text-gray-800"></p>
-                  
-                  <!-- 引用部分 - 现代简洁风格 -->
-                  <div v-if="message.references && message.references.length > 0" class="mt-2">
-                    <div class="flex items-center gap-1.5 mb-1.5">
-                      <span class="text-xs text-blue-600 font-medium">📚</span>
-                      <span class="text-xs text-gray-500">{{ language === 'zh' ? '参考文献' : 'References' }}</span>
-                    </div>
-                    <div class="space-y-1.5">
-                      <div 
-                        v-for="(ref, refIdx) in message.references" 
-                        :key="refIdx"
-                        class="flex gap-2 text-xs leading-relaxed"
-                      >
-                        <span class="text-blue-600 font-medium min-w-[18px] mt-0.5">{{ refIdx + 1 }}.</span>
-                        <span class="text-gray-600 flex-1" v-html="formatMessage(ref)"></span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- 消息时间戳和操作按钮 -->
-                  <div class="flex items-center justify-between mt-2">
-                    <div class="text-[10px] text-gray-400" :class="message.role === 'user' ? 'text-white/60' : ''">
-                      {{ formatTime(message.timestamp || new Date()) }}
-                    </div>
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        class="p-1 rounded transition-colors"
-                        :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
-                        @click="copyMessage(message.content)"
-                        title="复制"
-                      >
-                        <svg class="w-3 h-3 transition-colors" 
-                             :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                        </svg>
-                      </button>
-                      <button 
-                        v-if="message.role === 'assistant'"
-                        class="p-1 hover:bg-gray-100 rounded transition-colors"
-                        @click="likeMessage(index)"
-                        title="点赞"
-                      >
-                        <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                        </svg>
-                      </button>
-                      <button 
-                        class="p-1 rounded transition-colors"
-                        :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
-                        @click="deleteMessage(index)"
-                        title="删除消息"
-                      >
-                        <svg class="w-3 h-3 transition-colors" 
-                             :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+              <div v-show="expandedThinking.has(index)" class="p-3 bg-white transition-all duration-200">
+                <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono">
+                  {{ message.thinkingContent }}
                 </div>
-              </template>
+              </div>
+            </div>
+          </div>
+          
+          <p v-html="formatMessage(message.content)" class="whitespace-pre-wrap leading-relaxed"></p>
+          <!-- 引用部分 - 现代简洁风格 -->
+          <div v-if="message.references && message.references.length > 0" class="mt-2">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-xs text-blue-600 font-medium">📚</span>
+              <span class="text-xs text-gray-500">{{ language === 'zh' ? '参考文献' : 'References' }}</span>
             </div>
             
-            <template v-if="message.role === 'user'">
-              <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm text-gray-600 order-0 flex-shrink-0">👤</div>
-            </template>
+            <div class="space-y-1.5">
+              <div 
+                v-for="(ref, refIdx) in message.references" 
+                :key="refIdx"
+                class="flex gap-2 text-xs leading-relaxed"
+              >
+                <span class="text-blue-600 font-medium min-w-[18px] mt-0.5">{{ refIdx + 1 }}.</span>
+                <span class="text-gray-600 flex-1" v-html="formatMessage(ref)"></span>
+              </div>
+            </div>
           </div>
-        </template>
+          <!-- 消息时间戳和操作按钮 -->
+          <div class="flex items-center justify-between mt-1.5">
+            <div class="text-[11px] text-gray-400" :class="message.role === 'user' ? 'text-white/60' : ''">
+              {{ formatTime(message.timestamp || new Date()) }}
+            </div>
+            <!-- 右下角操作按钮 -->
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                class="p-1 rounded transition-colors"
+                :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
+                @click="copyMessage(message.content)"
+                title="复制"
+              >
+                <svg class="w-3 h-3 transition-colors" 
+                     :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
+              </button>
+              <button 
+                v-if="message.role === 'assistant'"
+                class="p-1 hover:bg-gray-100 rounded transition-colors"
+                @click="likeMessage(index)"
+                title="点赞"
+              >
+                <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+              </button>
+              <button 
+                class="p-1 rounded transition-colors"
+                :class="message.role === 'user' ? 'hover:bg-blue-500' : 'hover:bg-gray-100'"
+                @click="deleteMessage(index)"
+                title="删除消息"
+              >
+                <svg class="w-3 h-3 transition-colors" 
+                     :class="message.role === 'user' ? 'text-white/80 hover:text-white' : 'text-gray-500'" 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    
+    <template v-if="message.role === 'user'">
+      <div class="w-10 h-10 rounded-full overflow-hidden bg-gray-200 order-0 flex-shrink-0 border border-gray-200">
+        <img 
+          v-if="currentUserInfo"
+          :src="`/api/user/avatar/${currentUserInfo.ant_uid}`" 
+          alt="用户头像" 
+          class="w-full h-full object-cover"
+          @error="onAvatarError"
+        >
+        <div v-else class="w-full h-full flex items-center justify-center text-sm text-gray-600">👤</div>
+      </div>
+    </template>
+  </div>
+</template>
       </div>
 
       <!-- 输入区域 -->
       <div class="p-3 border-t border-gray-200 bg-white">
         <div class="flex gap-3 items-center">
+          <!-- 输入框 -->
           <div class="flex-1 relative">
             <textarea 
               v-model="userInput" 
@@ -333,6 +349,8 @@
               class="w-full p-3 border border-gray-300 rounded-lg text-sm leading-relaxed resize-none min-h-[44px] max-h-[120px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors disabled:bg-gray-50 disabled:cursor-not-allowed"
             ></textarea>
           </div>
+          
+          <!-- 发送/终止按钮 -->
           <button 
             v-if="!loading"
             class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 h-[44px]"
@@ -344,6 +362,8 @@
             </svg>
             {{ language === 'zh' ? '发送' : 'Send' }}
           </button>
+          
+          <!-- 终止按钮 (在发送按钮基础上显示) -->
           <button 
             v-else
             class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 h-[44px]"
@@ -357,88 +377,94 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- 登录提示对话框 -->
-    <div v-if="showLoginDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
-        <div class="text-center mb-6">
-          <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-            </svg>
-          </div>
-          <h3 class="text-xl font-bold text-gray-800">
-            {{ language === 'zh' ? '请先登录' : 'Please Login First' }}
-          </h3>
-          <p class="text-gray-500 mt-2">
-            {{ language === 'zh' ? '请输入您的账号密码以登录' : 'Please enter your username and password to log in' }}
-          </p>
+  <!-- 登录提示对话框 -->
+  <div v-if="showLoginDialog" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+          </svg>
         </div>
-        <div class="flex mb-6 border-b">
-          <button 
-            class="flex-1 py-2 text-center font-medium transition-colors" 
-            :class="loginType === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
-            @click="loginType = 'user'"
+        <h3 class="text-xl font-bold text-gray-800">
+          {{ language === 'zh' ? '请先登录' : 'Please Login First' }}
+        </h3>
+        <p class="text-gray-500 mt-2">
+          {{ language === 'zh' ? '请输入您的账号密码以登录' : 'Please enter your username and password to log in' }}
+        </p>
+      </div>
+      
+      <!-- 登录类型切换Tabbar -->
+      <div class="flex mb-6 border-b">
+        <button 
+          class="flex-1 py-2 text-center font-medium transition-colors" 
+          :class="loginType === 'user' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
+          @click="loginType = 'user'"
+        >
+          {{ language === 'zh' ? '用户登录' : 'User Login' }}
+        </button>
+        <button 
+          class="flex-1 py-2 text-center font-medium transition-colors" 
+          :class="loginType === 'sys' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
+          @click="loginType = 'sys'"
+        >
+          {{ language === 'zh' ? '系统登录' : 'System Login' }}
+        </button>
+      </div>
+      
+      <!-- 登录表单 -->
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ language === 'zh' ? '用户名' : 'Username' }}
+          </label>
+          <input 
+            v-model="loginUsername" 
+            type="text" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+            :placeholder="language === 'zh' ? '请输入用户名' : 'Please enter username'"
           >
-            {{ language === 'zh' ? '用户登录' : 'User Login' }}
-          </button>
-          <button 
-            class="flex-1 py-2 text-center font-medium transition-colors" 
-            :class="loginType === 'sys' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
-            @click="loginType = 'sys'"
-          >
-            {{ language === 'zh' ? '系统登录' : 'System Login' }}
-          </button>
         </div>
-        <div class="space-y-4 mb-6">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              {{ language === 'zh' ? '用户名' : 'Username' }}
-            </label>
-            <input 
-              v-model="loginUsername" 
-              type="text" 
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
-              :placeholder="language === 'zh' ? '请输入用户名' : 'Please enter username'"
-            >
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-              {{ language === 'zh' ? '密码' : 'Password' }}
-            </label>
-            <input 
-              v-model="loginPassword" 
-              type="password" 
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
-              :placeholder="language === 'zh' ? '请输入密码' : 'Please enter password'"
-            >
-          </div>
-          <div v-if="loginError" class="text-red-500 text-sm">
-            {{ loginError }}
-          </div>
-        </div>
-        <div class="space-y-4">
-          <button 
-            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-            @click="handleLogin"
-            :disabled="loginLoading"
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            {{ language === 'zh' ? '密码' : 'Password' }}
+          </label>
+          <input 
+            v-model="loginPassword" 
+            type="password" 
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+            :placeholder="language === 'zh' ? '请输入密码' : 'Please enter password'"
           >
-            <svg v-if="loginLoading" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1m3 0h10"></path>
-            </svg>
-            {{ language === 'zh' ? '登录' : 'Login' }}
-          </button>
-          <button 
-            class="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
-            @click="closeLoginDialog"
-            :disabled="loginLoading"
-          >
-            {{ language === 'zh' ? '取消' : 'Cancel' }}
-          </button>
         </div>
+        <div v-if="loginError" class="text-red-500 text-sm">
+          {{ loginError }}
+        </div>
+      </div>
+      
+      <!-- 登录按钮 -->
+      <div class="space-y-4">
+        <button 
+          class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+          @click="handleLogin"
+          :disabled="loginLoading"
+        >
+          <svg v-if="loginLoading" class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1m3 0h10"></path>
+          </svg>
+          {{ language === 'zh' ? '登录' : 'Login' }}
+        </button>
+        <button 
+          class="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
+          @click="closeLoginDialog"
+          :disabled="loginLoading"
+        >
+          {{ language === 'zh' ? '取消' : 'Cancel' }}
+        </button>
       </div>
     </div>
   </div>
@@ -446,7 +472,7 @@
 
 <script>
 import { ref, reactive, onMounted, nextTick } from 'vue';
-import { getCurrentUserInfo, autoLoginCheck, login, logout } from './login.js';
+import { getCurrentUserInfo, autoLoginCheck,login, logout } from './login.js';
 
 export default {
   name: 'App',
@@ -456,55 +482,31 @@ export default {
     const userInput = ref('');
     const loading = ref(false);
     const chatHistory = ref([]);
-    const expandedThinking = ref(new Set());
+    const expandedThinking = ref(new Set()); // 记录哪些消息的思考过程是展开的
     const currentChat = reactive({
       messages: []
     });
     const chatMessagesContainer = ref(null);
     const currentChatIndex = ref(-1);
     const currentChatTitle = ref('');
-    const showLoginDialog = ref(false);
-    const loginType = ref('user');
-    const loginUsername = ref('');
-    const loginPassword = ref('');
-    const loginError = ref('');
-    const loginLoading = ref(false);
-    const currentUserInfo = ref(null);
+    const isInThinkingMode = ref(false);
+    const thinkingContent = ref('');
+    const showThinking = ref(false);
+    const controller = ref(null); // 用于取消请求的控制器
+    const showLoginDialog = ref(false); // 控制登录对话框的显示
+    const loginType = ref('user'); // 登录类型，'user' 或 'sys'
+    const loginUsername = ref(''); // 登录用户名
+    const loginPassword = ref(''); // 登录密码
+    const loginError = ref(''); // 登录错误信息
+    const loginLoading = ref(false); // 登录加载状态
+    const currentUserInfo = ref(null); // 当前登录用户信息
 
-    // ========== 工具函数 ==========
-    const formatMessage = (content) => {
-      if (!content || content.trim() === '') return '';
-      return content
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code>$1</code>');
-    };
-
-    const scrollToBottom = () => {
-      if (chatMessagesContainer.value) {
-        chatMessagesContainer.value.scrollTop = chatMessagesContainer.value.scrollHeight;
-      }
-    };
-
-    const updateAssistantMessage = (content, thinking, references) => {
-      if (currentChat.messages.length === 0) return;
-      const lastIndex = currentChat.messages.length - 1;
-      const lastMessage = currentChat.messages[lastIndex];
-      if (lastMessage.role === 'assistant') {
-        currentChat.messages[lastIndex] = {
-          ...lastMessage,
-          content,
-          thinkingContent: thinking,
-          references
-        };
-        currentChat.messages = [...currentChat.messages];
-      }
-    };
-
-    // ========== 登录相关 ==========
+    // 处理登录请求
     const handleLogin = async () => {
+      // 重置错误信息
       loginError.value = '';
+      
+      // 简单的表单验证
       if (!loginUsername.value.trim()) {
         loginError.value = language.value === 'zh' ? '请输入用户名' : 'Please enter username';
         return;
@@ -513,28 +515,33 @@ export default {
         loginError.value = language.value === 'zh' ? '请输入密码' : 'Please enter password';
         return;
       }
+      
+      // 设置登录加载状态
       loginLoading.value = true;
+      
       try {
-        const success = await login(loginUsername.value.trim(), loginPassword.value.trim(), loginType.value);
-        if (success) {
-          const isLoggedIn = await autoLoginCheck();
-          if (isLoggedIn) {
-            currentUserInfo.value = await getCurrentUserInfo();
-            showLoginDialog.value = false;
-            resetLoginForm();
-          } else {
-            loginError.value = '登录后验证失败，请重试';
-          }
-        } else {
-          loginError.value = '登录请求失败';
-        }
-      } catch (error) {
-        loginError.value = error.message || '登录异常';
-      } finally {
-        loginLoading.value = false;
+    const success = await login(loginUsername.value.trim(), loginPassword.value.trim(), loginType.value);
+    if (success) {
+      // ✅ 重新检测登录状态并获取用户信息
+      const isLoggedIn = await autoLoginCheck();
+      if (isLoggedIn) {
+        currentUserInfo.value = await getCurrentUserInfo(); // ← 异步获取
+        showLoginDialog.value = false;
+        resetLoginForm();
+      } else {
+        loginError.value = '登录后验证失败，请重试';
       }
+    } else {
+      loginError.value = '登录请求失败';
+    }
+  } catch (error) {
+    loginError.value = error.message || '登录异常';
+  } finally {
+    loginLoading.value = false;
+  }
     };
-
+    
+    // 重置登录表单
     const resetLoginForm = () => {
       loginUsername.value = '';
       loginPassword.value = '';
@@ -542,11 +549,27 @@ export default {
       loginType.value = 'user';
     };
 
-    const closeLoginDialog = () => {
-      showLoginDialog.value = false;
-    };
+    // 初始化加载历史聊天记录
+    onMounted(async () => {
+  console.log('[App] 开始自动登录检查...');
+  loadChatHistory();
 
-    // ========== 聊天历史 ==========
+  try {
+    const isLoggedIn = await autoLoginCheck();
+    if (isLoggedIn) {
+      // ✅ 异步获取用户信息
+      currentUserInfo.value = await getCurrentUserInfo();
+      console.log('[App] 用户已登录:', currentUserInfo.value);
+    } else {
+      showLoginDialog.value = true;
+    }
+  } catch (error) {
+    console.error('[App] 自动登录异常:', error);
+    showLoginDialog.value = true;
+  }
+});
+
+    // 加载聊天历史
     const loadChatHistory = () => {
       const savedHistory = localStorage.getItem('chatHistory');
       if (savedHistory) {
@@ -554,6 +577,7 @@ export default {
       }
     };
 
+    // 保存聊天历史
     const saveChatHistory = () => {
       const historyToSave = chatHistory.value.map(chat => ({
         question: chat.question,
@@ -561,7 +585,7 @@ export default {
         messages: chat.messages.map(msg => ({
           role: msg.role,
           content: msg.content,
-          thinkingContent: msg.thinkingContent || '',
+          thinkingContent: msg.thinkingContent || '', // ← 保存思考内容
           references: msg.references || [],
           timestamp: msg.timestamp || new Date()
         }))
@@ -569,24 +593,36 @@ export default {
       localStorage.setItem('chatHistory', JSON.stringify(historyToSave));
     };
 
+    // 开始新对话
     const startNewChat = () => {
       currentChat.messages = [];
       userInput.value = '';
       currentChatIndex.value = -1;
       currentChatTitle.value = '';
+      isInThinkingMode.value = false;
+      thinkingContent.value = '';
+      showThinking.value = false;
+      // 如果有正在进行的请求，取消它
+      if (controller.value) {
+        controller.value.abort();
+      }
     };
 
+    // 加载历史对话
     const loadChat = (index) => {
       const chat = chatHistory.value[index];
       currentChat.messages = chat.messages.map(msg => ({
         ...msg,
-        thinkingContent: msg.thinkingContent || ''
+        thinkingContent: msg.thinkingContent || '' // 确保字段存在
       }));
       currentChatIndex.value = index;
       currentChatTitle.value = chat.question;
+      
+      // 加载历史时，不自动展开思考过程
       expandedThinking.value.clear();
     };
 
+    // 删除聊天记录
     const deleteChat = (index) => {
       if (confirm(language.value === 'zh' ? '确定要删除这条对话记录吗？' : 'Are you sure you want to delete this conversation?')) {
         chatHistory.value.splice(index, 1);
@@ -594,7 +630,7 @@ export default {
       }
     };
 
-    // ========== 消息处理 ==========
+    // 示例问题
     const exampleQuestions = {
       singleTurn: {
         zh: [
@@ -644,25 +680,34 @@ export default {
       }
     };
 
+    // 切换语言
+    const changeLanguage = () => {
+      // 语言切换时可能需要的操作
+    };
+
+    // 发送示例问题
     const sendExampleQuestion = (question) => {
       userInput.value = question;
       sendMessage();
     };
 
-    const sendMessage = async () => {
+    // 发送消息
+const sendMessage = async () => {
       if (!userInput.value.trim() || loading.value) return;
       if (!currentUserInfo.value) {
         showLoginDialog.value = true;
         return;
       }
 
+      // ===== 声明所有状态 =====
       let accumulatedContent = '';
       let accumulatedThinking = '';
-      let accumulatedReferences = []; // ✅ 已声明
+      let accumulatedReferences = [];
       let isInThinking = false;
       let hasThinkingStarted = false;
 
       const question = userInput.value.trim();
+
       currentChat.messages.push({
         role: 'user',
         content: question,
@@ -673,10 +718,11 @@ export default {
       userInput.value = '';
       loading.value = true;
 
+      // 创建助手消息占位（包含 thinkingContent 字段）
       currentChat.messages.push({
         role: 'assistant',
         content: '',
-        thinkingContent: '',
+        thinkingContent: '', // ← 新增字段
         references: [],
         timestamp: new Date()
       });
@@ -691,6 +737,8 @@ export default {
       const apiKey = 'fastgpt-mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC';
 
       try {
+        // 建立可中断的流式请求
+        controller.value = new AbortController();
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -699,6 +747,7 @@ export default {
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache'
           },
+          signal: controller.value.signal,
           body: JSON.stringify({
             stream: true,
             messages,
@@ -713,7 +762,9 @@ export default {
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
+        let eventDataLines = [];
 
+        // 基于 SSE 规范：多个 data: 行聚合为一个事件，空行作为事件分隔
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -723,69 +774,88 @@ export default {
 
           let newlineIndex;
           while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-            let line = buffer.slice(0, newlineIndex).trim();
+            const rawLine = buffer.slice(0, newlineIndex);
             buffer = buffer.slice(newlineIndex + 1);
 
+            const line = rawLine.replace(/\r$/, '');
+
+            // 空行 -> 完整事件
+            if (line === '') {
+              if (eventDataLines.length > 0) {
+                const dataStr = eventDataLines.join('');
+                eventDataLines = [];
+
+                if (dataStr === '[DONE]') {
+                  chatHistory.value.push({
+                    question,
+                    messages: currentChat.messages.map(msg => ({
+                      ...msg,
+                      content: msg.content,
+                      thinkingContent: msg.thinkingContent,
+                      references: msg.references || []
+                    })),
+                    timestamp: new Date()
+                  });
+                  if (chatHistory.value.length > 10) chatHistory.value.shift();
+                  saveChatHistory();
+                  loading.value = false;
+                  return;
+                }
+
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const delta = parsed.choices?.[0]?.delta || {};
+                  const content = delta.content || '';
+                  const reasoning = delta.reasoning_content || '';
+
+                  // ===== 1. 处理思考模式 =====
+                  if (reasoning === '<think>') {
+                    isInThinking = true;
+                    accumulatedThinking = '';
+                    hasThinkingStarted = true;
+                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    continue;
+                  } else if (reasoning === '</think>') {
+                    isInThinking = false;
+                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    continue;
+                  }
+
+                  if (isInThinking && reasoning) {
+                    accumulatedThinking += reasoning;
+                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    nextTick(scrollToBottom);
+                    if (loading.value) loading.value = false;
+                    continue;
+                  }
+
+                  // ===== 2. 处理正式回答 =====
+                  if (content) {
+                    accumulatedContent += content;
+                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    nextTick(scrollToBottom);
+                    if (loading.value) loading.value = false;
+                  }
+
+                  if (delta.references) {
+                    accumulatedReferences = delta.references;
+                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  }
+                } catch (e) {
+                  console.error('Parse error:', e, dataStr);
+                }
+              }
+              continue;
+            }
+
+            // 注释行 (以冒号开头) 忽略
+            if (line.startsWith(':')) {
+              continue;
+            }
+
+            // 聚合 data: 行
             if (line.startsWith('data:')) {
-              const dataStr = line.slice(5).trim();
-              if (dataStr === '[DONE]') {
-                chatHistory.value.push({
-                  question,
-                  messages: currentChat.messages.map(msg => ({
-                    ...msg,
-                    content: msg.content,
-                    thinkingContent: msg.thinkingContent,
-                    references: msg.references || []
-                  })),
-                  timestamp: new Date()
-                });
-                if (chatHistory.value.length > 10) chatHistory.value.shift();
-                saveChatHistory();
-                loading.value = false;
-                return;
-              }
-
-              try {
-                const parsed = JSON.parse(dataStr);
-                const delta = parsed.choices?.[0]?.delta || {};
-                const content = delta.content || '';
-                const reasoning = delta.reasoning_content || '';
-
-                if (reasoning === 'thinks>') {
-                  isInThinking = true;
-                  accumulatedThinking = '';
-                  hasThinkingStarted = true;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  continue;
-                } else if (reasoning === '</think>') {
-                  isInThinking = false;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  continue;
-                }
-
-                if (isInThinking && reasoning) {
-                  accumulatedThinking += reasoning;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  nextTick(scrollToBottom);
-                  if (loading.value) loading.value = false;
-                  continue;
-                }
-
-                if (content) {
-                  accumulatedContent += content;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  nextTick(scrollToBottom);
-                  if (loading.value) loading.value = false;
-                }
-
-                if (delta.references) {
-                  accumulatedReferences = delta.references;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                }
-
-              } catch (e) {
-                console.error('Parse error:', e, dataStr);
-              }
+              eventDataLines.push(line.slice(5).trimStart());
             }
           }
         }
@@ -804,23 +874,136 @@ export default {
         currentChat.messages.push(errorMsg);
       } finally {
         loading.value = false;
+        // 清理控制器
+        controller.value = null;
       }
     };
 
+const updateAssistantMessage = (content, thinking, references) => {
+  if (currentChat.messages.length === 0) return;
+  
+  const lastIndex = currentChat.messages.length - 1;
+  const lastMessage = currentChat.messages[lastIndex];
+  
+  if (lastMessage.role === 'assistant') {
+    // 👇 关键：直接赋值，不要防抖！
+    currentChat.messages[lastIndex] = {
+      ...lastMessage,
+      content,
+      thinkingContent: thinking,
+      references
+    };
+    
+    // 强制触发响应式更新
+    currentChat.messages = [...currentChat.messages];
+  }
+};
+
+    // 取消当前请求
     const cancelRequest = () => {
-      loading.value = false;
-      if (currentChat.messages.length > 0 && currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
-        currentChat.messages.pop();
+      if (controller.value) {
+        // 使用axios的取消方式
+        if (controller.value.cancel) {
+          controller.value.cancel('Request cancelled');
+        } else if (controller.value.abort) {
+          // 向后兼容，保留原有的abort方法
+          controller.value.abort();
+        }
+        loading.value = false;
+        // 移除最后添加的助手消息（如果有的话）
+        if (currentChat.messages.length > 0 && 
+            currentChat.messages[currentChat.messages.length - 1].role === 'assistant') {
+          currentChat.messages.pop();
+        }
+        // 添加一条简洁的终止提示消息
+        const cancelMessage = {
+          role: 'assistant',
+          content: language.value === 'zh' ? '对话终止' : 'Conversation terminated',
+          references: [],
+          timestamp: new Date()
+        };
+        currentChat.messages.push(cancelMessage);
       }
-      const cancelMessage = {
-        role: 'assistant',
-        content: language.value === 'zh' ? '对话终止' : 'Conversation terminated',
-        references: [],
-        timestamp: new Date()
-      };
-      currentChat.messages.push(cancelMessage);
     };
 
+    // 格式化消息内容（支持简单的Markdown）
+    const formatMessage = (content) => {
+      console.log('formatMessage接收到的内容:', content);
+      if (!content || content.trim() === '') {
+        console.log('内容为空，返回空字符串');
+        return '';
+      }
+      
+      // 简单的Markdown解析
+      let formatted = content
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>');
+      
+      console.log('格式化后的内容:', formatted);
+      return formatted;
+    };
+
+    // 滚动到底部
+    const scrollToBottom = () => {
+      if (chatMessagesContainer.value) {
+        chatMessagesContainer.value.scrollTop = chatMessagesContainer.value.scrollHeight;
+      }
+    };
+
+    // 清空输入框
+    const clearInput = () => {
+      userInput.value = '';
+    };
+
+    // 格式化时间
+    const formatTime = (date) => {
+      const now = new Date(date);
+      return now.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // 格式化日期
+    const formatDate = (date) => {
+      const now = new Date(date);
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${month}-${day}`;
+    };
+
+    // 复制消息
+    const copyMessage = async (content) => {
+      try {
+        await navigator.clipboard.writeText(content);
+        // 可以添加提示
+      } catch (err) {
+        console.error('复制失败:', err);
+      }
+    };
+
+    // 复制输入内容
+    const copyInput = async () => {
+      try {
+        await navigator.clipboard.writeText(userInput.value);
+      } catch (err) {
+        console.error('复制失败:', err);
+      }
+    };
+
+    // 重新生成响应
+    const regenerateResponse = () => {
+      if (currentChat.messages.length > 0) {
+        const lastUserMessage = currentChat.messages.filter(msg => msg.role === 'user').pop();
+        if (lastUserMessage) {
+          userInput.value = lastUserMessage.content;
+          sendMessage();
+        }
+      }
+    };
+    
     const toggleThinking = (index) => {
       if (expandedThinking.value.has(index)) {
         expandedThinking.value.delete(index);
@@ -829,60 +1012,79 @@ export default {
       }
     };
 
-    // ========== 其他功能 ==========
-    const clearInput = () => { userInput.value = ''; };
-    const copyMessage = async (content) => {
-      try { await navigator.clipboard.writeText(content); } catch (err) { console.error('复制失败:', err); }
-    };
-    const likeMessage = (index) => { console.log('点赞消息:', index); };
-    const deleteMessage = (index) => {
-      if (confirm('确定要删除这条消息吗？')) {
-        currentChat.messages.splice(index, 1);
-        saveChatHistory();
+    // 获取用户名首字母（用于用户头像显示）
+    const getInitials = (userId) => {
+      if (!userId) return '👤';
+      // 简单处理：如果userId是数字，返回前两位
+      if (!isNaN(userId)) {
+        return userId.toString().slice(0, 2);
       }
+      // 如果是字符串，返回首字母
+      return userId.charAt(0).toUpperCase();
     };
+    
+    // 处理退出登录
     const handleLogout = async () => {
       if (confirm(language.value === 'zh' ? '确定要退出登录吗？' : 'Are you sure you want to log out?')) {
         try {
+          // 调用退出登录函数
           const success = await logout(true);
+          
           if (success) {
+            // 清除用户信息
             currentUserInfo.value = null;
+            
+            // 清空当前对话
             currentChat.messages = [];
+            
+            // 显示登录对话框
             showLoginDialog.value = true;
+            
+            console.log('用户已成功退出登录');
+          } else {
+            console.error('退出登录失败');
           }
         } catch (error) {
-          console.error('退出登录错误:', error);
+          console.error('退出登录过程中发生错误:', error);
         }
       }
     };
-    const onAvatarError = (event) => { event.target.style.opacity = '0'; };
-    const loadMoreChats = () => { console.log('加载更多'); };
-    const exportChat = () => { /* 保留占位 */ };
-    const changeLanguage = () => {};
 
-    const formatTime = (date) => {
-      return new Date(date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    };
-    const formatDate = (date) => {
-      const d = new Date(date);
-      return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // 点赞消息
+    const likeMessage = (index) => {
+      // 实现点赞功能
+      console.log('点赞消息:', index);
     };
 
-    // ========== 初始化 ==========
-    onMounted(async () => {
-      loadChatHistory();
-      try {
-        const isLoggedIn = await autoLoginCheck();
-        if (isLoggedIn) {
-          currentUserInfo.value = await getCurrentUserInfo();
-        } else {
-          showLoginDialog.value = true;
-        }
-      } catch (error) {
-        console.error('[App] 自动登录异常:', error);
-        showLoginDialog.value = true;
+    // 删除消息
+    const deleteMessage = (index) => {
+      if (confirm('确定要删除这条消息吗？')) {
+        currentChat.messages.splice(index, 1);
+        // 保存更新后的聊天记录
+        saveChatHistory();
+        console.log('删除消息:', index);
       }
-    });
+    };
+
+    // 关闭登录对话框
+    const closeLoginDialog = () => {
+      showLoginDialog.value = false;
+    };
+
+    // 处理头像加载失败
+    const onAvatarError = (event) => {
+      // 设置图片为透明，这样下面的文字就能显示出来
+      event.target.style.opacity = '0';
+      console.log('用户头像加载失败，显示首字母代替');
+    };
+
+    // 导出对话功能已移除
+
+    // 加载更多聊天记录
+    const loadMoreChats = () => {
+      // 实现加载更多功能
+      console.log('加载更多聊天记录');
+    };
 
     return {
       language,
@@ -892,6 +1094,9 @@ export default {
       currentChat,
       currentChatIndex,
       currentChatTitle,
+      isInThinkingMode,
+      thinkingContent,
+      showThinking,
       exampleQuestions,
       startNewChat,
       loadChat,
@@ -905,6 +1110,8 @@ export default {
       formatTime,
       formatDate,
       copyMessage,
+      copyInput,
+      regenerateResponse,
       likeMessage,
       deleteMessage,
       loadMoreChats,
@@ -919,37 +1126,12 @@ export default {
       loginLoading,
       handleLogin,
       currentUserInfo,
+      getInitials,
       handleLogout,
       expandedThinking,
       toggleThinking,
-      saveChatHistory,
-      exportChat
+      saveChatHistory
     };
   }
 };
 </script>
-
-<style scoped>
-.thinking-container {
-  display: flex;
-  align-items: center;
-}
-.thinking-dot {
-  width: 8px;
-  height: 8px;
-  background: #94a3b8;
-  border-radius: 50%;
-  margin-right: 4px;
-  animation: thinking 1.4s infinite ease-in-out both;
-}
-.thinking-dot:nth-child(2) {
-  animation-delay: -0.32s;
-}
-.thinking-dot:nth-child(3) {
-  animation-delay: -0.64s;
-}
-@keyframes thinking {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
-}
-</style>
