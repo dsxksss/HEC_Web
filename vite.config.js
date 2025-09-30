@@ -37,6 +37,11 @@ export default defineConfig({
         },
         timeout: 60000,
         followRedirects: true
+      },
+      '/api/v1/chat/completions': {
+        target: 'https://chatai.dyg.com.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1/, '/api/v1')
       }
     }
   }
