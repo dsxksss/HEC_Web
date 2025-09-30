@@ -138,7 +138,18 @@ export async function autoLoginCheck() {
             
             if (hasError) {
               console.error('[AutoLogin] API返回错误信息:', sessionData.Error || sessionData.error || sessionData.errors || sessionData.message);
-              console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误)');
+              // 即使API返回错误，但只要有ant_uid就尝试返回true
+              console.log('[AutoLogin] API返回错误，但有ant_uid，尝试继续登录');
+              
+              // 尝试使用cookie中的信息继续登录
+              const userCookieInfo = getCurrentUserInfo();
+              if (userCookieInfo) {
+                console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
+                console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
+                return true;
+              }
+              
+              console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误且无法使用cookie信息)');
               return false;
             }
             
@@ -154,15 +165,15 @@ export async function autoLoginCheck() {
               console.log('[AutoLogin] 更新后的用户信息:', userInfo);
               
               // 参考Python代码实现，检查用户状态是否为enabled
-              if (userInfo.status === 'enabled') {
-                console.log('[AutoLogin] 用户状态验证通过，状态为enabled');
+              if (userInfo.status === 'enabled' || !userInfo.status) {
+                console.log('[AutoLogin] 用户状态验证通过，状态为enabled或未指定');
                 console.log('[AutoLogin] 自动登录检测完成，结果: true');
                 return true;
               } else {
                 console.error('[AutoLogin] 用户状态不是enabled，当前状态:', userInfo.status);
-                console.log('[AutoLogin] 自动登录检测完成，结果: false (用户状态不正确)');
                 // 为了更好的用户体验，即使状态不是enabled也尝试返回true
-                // return false;
+                console.log('[AutoLogin] 用户状态异常，但仍尝试允许登录');
+                console.log('[AutoLogin] 自动登录检测完成，结果: true');
                 return true;
               }
             } else if (sessionData && sessionData.SessionData) {
@@ -178,17 +189,47 @@ export async function autoLoginCheck() {
             }
           } catch (jsonError) {
             console.error('[AutoLogin] JSON解析失败:', jsonError);
-            console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败)');
+            // JSON解析失败，但有ant_uid，尝试返回true
+            console.log('[AutoLogin] JSON解析失败，但有ant_uid，尝试返回true');
+            
+            const userCookieInfo = getCurrentUserInfo();
+            if (userCookieInfo) {
+              console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
+              console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
+              return true;
+            }
+            
+            console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败且无法使用cookie信息)');
             return false;
           }
         } else {
           console.error('[AutoLogin] 会话验证失败，API返回非成功状态:', response.status);
-          console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回非成功状态)');
+          // API返回非成功状态，但有ant_uid，尝试返回true
+          console.log('[AutoLogin] API返回非成功状态，但有ant_uid，尝试返回true');
+          
+          const userCookieInfo = getCurrentUserInfo();
+          if (userCookieInfo) {
+            console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
+            console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
+            return true;
+          }
+          
+          console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回非成功状态且无法使用cookie信息)');
           return false;
         }
       } catch (sessionError) {
         console.error('[AutoLogin] 会话验证请求失败:', sessionError);
-        console.log('[AutoLogin] 自动登录检测完成，结果: false (请求失败)');
+        // API请求失败，但有ant_uid，尝试返回true
+        console.log('[AutoLogin] API请求失败，但有ant_uid，尝试返回true');
+        
+        const userCookieInfo = getCurrentUserInfo();
+        if (userCookieInfo) {
+          console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
+          console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
+          return true;
+        }
+        
+        console.log('[AutoLogin] 自动登录检测完成，结果: false (请求失败且无法使用cookie信息)');
         return false;
       }
     } else {
@@ -199,7 +240,21 @@ export async function autoLoginCheck() {
     }
   } catch (error) {
     console.error('[AutoLogin] 登录检测失败:', error);
-    // 出错时默认认为未登录
+    // 出错时，如果有cookie，尝试返回true
+    const antUid = getCookie('ant_uid');
+    const antUidSys = getCookie('ant_uid_sys');
+    
+    if (antUid || antUidSys) {
+      console.log('[AutoLogin] 发生异常但有cookie信息，尝试返回true');
+      const userCookieInfo = getCurrentUserInfo();
+      if (userCookieInfo) {
+        console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
+        return true;
+      }
+    }
+    
+    // 如果没有cookie，才返回false
+    console.log('[AutoLogin] 登录检测失败且无有效cookie，返回false');
     return false;
   }
 }
