@@ -777,9 +777,9 @@ const sendMessage = async () => {
         let buffer = '';
         let eventDataLines = [];
         // rAF 滚动（统一在下方只定义一次）
-        // 打字机式渲染：每84ms输出1个字符（≈每秒12字，原先的两倍速度）
+        // 打字机式渲染：每56ms输出1个字符（≈每秒18字）
         const TOTAL_CHARS_PER_TICK = 1;
-        const TICK_MS = 84;
+        const TICK_MS = 56;
         // 安全分割函数：尽量避免拆分复合字符（emoji/变体等）
         const takeGraphemes = (input, count) => {
           try {
