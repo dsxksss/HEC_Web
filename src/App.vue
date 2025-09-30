@@ -221,7 +221,7 @@
             : 'bg-white border-gray-200'"
         >
           <!-- 思考过程手风琴 -->
-          <div v-if="message.thinkingContent" class="mb-3">
+          <div v-if="message.thinkingContent" class="mb-1">
             <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-all">
               <button 
                 @click="toggleThinking(index)"
@@ -253,16 +253,21 @@
           </div>
           
           <p v-html="formatMessage(message.content)" class="whitespace-pre-wrap leading-relaxed"></p>
-          <!-- 引用部分 -->
-          <div v-if="message.references && message.references.length > 0" class="mt-3">
-            <h4 class="text-sm font-semibold mb-1.5 text-gray-600 flex items-center gap-1.5" :class="message.role === 'user' ? 'text-white/80' : ''">
-              <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">📚</span>
-              {{ language === 'zh' ? '参考文献' : 'References' }}
-            </h4>
-            <div class="space-y-1">
-              <div v-for="(ref, refIdx) in message.references" :key="refIdx" class="reference-item">
-                <span class="reference-icon">{{ refIdx + 1 }}.</span>
-                <span class="reference-content" v-html="formatMessage(ref)"></span>
+          <!-- 引用部分 - 现代简洁风格 -->
+          <div v-if="message.references && message.references.length > 0" class="mt-2">
+            <div class="flex items-center gap-1.5 mb-1.5">
+              <span class="text-xs text-blue-600 font-medium">📚</span>
+              <span class="text-xs text-gray-500">{{ language === 'zh' ? '参考文献' : 'References' }}</span>
+            </div>
+            
+            <div class="space-y-1.5">
+              <div 
+                v-for="(ref, refIdx) in message.references" 
+                :key="refIdx"
+                class="flex gap-2 text-xs leading-relaxed"
+              >
+                <span class="text-blue-600 font-medium min-w-[18px] mt-0.5">{{ refIdx + 1 }}.</span>
+                <span class="text-gray-600 flex-1" v-html="formatMessage(ref)"></span>
               </div>
             </div>
           </div>
@@ -847,23 +852,23 @@ const sendMessage = async () => {
       }
     };
 
-    const updateAssistantMessage = (content, thinking, references) => {
+const updateAssistantMessage = (content, thinking, references) => {
   if (currentChat.messages.length === 0) return;
   
   const lastIndex = currentChat.messages.length - 1;
   const lastMessage = currentChat.messages[lastIndex];
   
   if (lastMessage.role === 'assistant') {
-    // 替换整个数组，确保响应式更新
-    currentChat.messages = [
-      ...currentChat.messages.slice(0, lastIndex),
-      {
-        ...lastMessage,
-        content,
-        thinkingContent: thinking,
-        references
-      }
-    ];
+    // 👇 关键：直接赋值，不要防抖！
+    currentChat.messages[lastIndex] = {
+      ...lastMessage,
+      content,
+      thinkingContent: thinking,
+      references
+    };
+    
+    // 强制触发响应式更新
+    currentChat.messages = [...currentChat.messages];
   }
 };
 
