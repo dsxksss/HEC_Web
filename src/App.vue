@@ -96,6 +96,21 @@
             </div>
           </div>
           <div class="flex items-center gap-3">
+            <!-- 用户信息和退出按钮 -->
+            <div v-if="currentUserInfo" class="flex items-center gap-2 mr-2">
+              <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700">
+                {{ getInitials(currentUserInfo.ant_uid) }}
+              </div>
+              <span class="text-sm text-gray-700">用户{{ currentUserInfo.ant_uid }}</span>
+              <button 
+                class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
+                @click="handleLogout"
+                title="退出登录"
+              >
+                退出
+              </button>
+            </div>
+            
             <button 
               class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="更多选项"
@@ -474,6 +489,7 @@ export default {
     const loginPassword = ref(''); // 登录密码
     const loginError = ref(''); // 登录错误信息
     const loginLoading = ref(false); // 登录加载状态
+    const currentUserInfo = ref(null); // 当前登录用户信息
 
     // 处理登录请求
     const handleLogin = async () => {
@@ -502,8 +518,8 @@ export default {
           const isLoggedIn = await autoLoginCheck();
           if (isLoggedIn) {
             // 获取用户信息
-            const userInfo = getCurrentUserInfo();
-            console.log('登录成功，用户信息:', userInfo);
+            currentUserInfo.value = getCurrentUserInfo();
+            console.log('登录成功，用户信息:', currentUserInfo.value);
             
             // 关闭登录对话框
             showLoginDialog.value = false;
@@ -538,17 +554,17 @@ export default {
       loadChatHistory();
       
       // 检查wemol平台登录状态
-      const isLoggedIn = await autoLoginCheck();
-      if (!isLoggedIn) {
-        // 如果未登录，显示登录提示对话框
-        console.log('用户未登录，显示登录提示对话框');
-        showLoginDialog.value = true;
-      } else {
-        // 用户已登录，获取用户信息
-        const userInfo = getCurrentUserInfo();
-        console.log('当前登录用户信息:', userInfo);
-      }
-    });
+        const isLoggedIn = await autoLoginCheck();
+        if (!isLoggedIn) {
+          // 如果未登录，显示登录提示对话框
+          console.log('用户未登录，显示登录提示对话框');
+          showLoginDialog.value = true;
+        } else {
+          // 用户已登录，获取用户信息
+          currentUserInfo.value = getCurrentUserInfo();
+          console.log('当前登录用户信息:', currentUserInfo.value);
+        }
+      });
 
     // 加载聊天历史
     const loadChatHistory = () => {
@@ -1069,6 +1085,44 @@ export default {
         }
       }
     };
+    
+    // 获取用户名首字母（用于用户头像显示）
+    const getInitials = (userId) => {
+      if (!userId) return '👤';
+      // 简单处理：如果userId是数字，返回前两位
+      if (!isNaN(userId)) {
+        return userId.toString().slice(0, 2);
+      }
+      // 如果是字符串，返回首字母
+      return userId.charAt(0).toUpperCase();
+    };
+    
+    // 处理退出登录
+    const handleLogout = async () => {
+      if (confirm(language.value === 'zh' ? '确定要退出登录吗？' : 'Are you sure you want to log out?')) {
+        try {
+          // 调用退出登录函数
+          const success = await logout(true);
+          
+          if (success) {
+            // 清除用户信息
+            currentUserInfo.value = null;
+            
+            // 清空当前对话
+            currentChat.messages = [];
+            
+            // 显示登录对话框
+            showLoginDialog.value = true;
+            
+            console.log('用户已成功退出登录');
+          } else {
+            console.error('退出登录失败');
+          }
+        } catch (error) {
+          console.error('退出登录过程中发生错误:', error);
+        }
+      }
+    };
 
     // 点赞消息
     const likeMessage = (index) => {
@@ -1163,7 +1217,10 @@ export default {
       loginPassword,
       loginError,
       loginLoading,
-      handleLogin
+      handleLogin,
+      currentUserInfo,
+      getInitials,
+      handleLogout
     };
   }
 };
