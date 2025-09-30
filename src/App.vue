@@ -542,20 +542,45 @@ export default {
 
     // 初始化加载历史聊天记录
     onMounted(async () => {
+      console.log('[App] 应用已挂载，开始自动登录检查');
       loadChatHistory();
       
-      // 检查wemol平台登录状态
+      try {
+        // 添加临时的自动登录状态指示，让用户能看到自动登录正在进行
+        // 在实际项目中可以使用一个全局状态管理或UI组件来显示这个信息
+        console.log('[App] 正在执行自动登录检查...');
+        localStorage.setItem('autoLoginCheckInProgress', 'true');
+        
+        // 检查wemol平台登录状态
+        console.log('[App] 准备调用autoLoginCheck函数');
         const isLoggedIn = await autoLoginCheck();
+        console.log('[App] autoLoginCheck函数调用完成，结果:', isLoggedIn);
+        
+        // 记录自动登录结果到localStorage，用于调试
+        localStorage.setItem('lastAutoLoginResult', isLoggedIn.toString());
+        localStorage.setItem('lastAutoLoginTime', new Date().toISOString());
+        localStorage.removeItem('autoLoginCheckInProgress');
+        
         if (!isLoggedIn) {
           // 如果未登录，显示登录提示对话框
-          console.log('用户未登录，显示登录提示对话框');
+          console.log('[App] 用户未登录，显示登录提示对话框');
           showLoginDialog.value = true;
         } else {
           // 用户已登录，获取用户信息
           currentUserInfo.value = getCurrentUserInfo();
-          console.log('当前登录用户信息:', currentUserInfo.value);
+          console.log('[App] 当前登录用户信息:', currentUserInfo.value);
+          // 记录用户信息到localStorage，用于调试
+          if (currentUserInfo.value) {
+            localStorage.setItem('lastLoginUserInfo', JSON.stringify(currentUserInfo.value));
+          }
         }
-      });
+      } catch (error) {
+        console.error('[App] 自动登录检查过程中发生错误:', error);
+        // 记录错误信息到localStorage
+        localStorage.setItem('autoLoginError', error.message || '未知错误');
+        localStorage.removeItem('autoLoginCheckInProgress');
+      }
+    });
 
     // 加载聊天历史
     const loadChatHistory = () => {

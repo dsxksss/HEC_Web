@@ -74,10 +74,13 @@ export function getCurrentUserInfo() {
  * @returns {Promise<boolean>} - 登录检测结果
  */
 export async function autoLoginCheck() {
+  console.log('[AutoLogin] 自动登录检测开始');
   try {
     // 检查cookie中是否存在登录信息
     const antUid = getCookie('ant_uid');
     const antUidSys = getCookie('ant_uid_sys');
+    
+    console.log('[AutoLogin] 获取到的Cookie信息:', { antUid: !!antUid, antUidSys: !!antUidSys });
     
     // 用户要求：有antUid就用前台用户API，都有则以antUid数据用户为主
     const shouldUseFrontendAPI = antUid !== null;
@@ -89,7 +92,7 @@ export async function autoLoginCheck() {
         ant_uid_sys: antUidSys,
         isFrontendUser: antUid !== null
       };
-      console.log('用户已登录wemol平台:', userInfo);
+      console.log('[AutoLogin] 用户已登录wemol平台:', userInfo);
       
       // 根据用户要求使用正确的API验证登录是否有效
       try {
@@ -97,7 +100,7 @@ export async function autoLoginCheck() {
           ? '/api/user/session_update?data=true' 
           : '/api/sys/session_update?data=true';
         
-        console.log('使用API验证登录状态:', apiEndpoint);
+        console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
         const response = await fetch(apiEndpoint, {
           method: 'POST',
@@ -107,32 +110,38 @@ export async function autoLoginCheck() {
           }
         });
         
+        console.log('[AutoLogin] API请求完成，状态码:', response.status);
+        
         if (response.ok) {
           const sessionData = await response.json();
-          console.log('会话验证成功，返回数据:', sessionData);
+          console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
           // 将会话数据中的用户信息合并到userInfo对象中
           if (sessionData && sessionData.SessionData) {
             // 更新用户信息，包括Name字段
             Object.assign(userInfo, sessionData.SessionData);
           }
+          console.log('[AutoLogin] 自动登录检测完成，结果: true');
           return true;
         } else {
-          console.error('会话验证失败，API返回非成功状态:', response.status);
+          console.error('[AutoLogin] 会话验证失败，API返回非成功状态:', response.status);
           // API返回非成功状态时，也尝试返回true，因为cookie存在
+          console.log('[AutoLogin] 自动登录检测完成，结果: true (基于cookie存在)');
           return true;
         }
       } catch (sessionError) {
-        console.error('会话验证请求失败:', sessionError);
+        console.error('[AutoLogin] 会话验证请求失败:', sessionError);
         // 请求失败时，不立即判定未登录，而是尝试返回用户信息
+        console.log('[AutoLogin] 自动登录检测完成，结果: true (请求失败但cookie存在)');
         return true;
       }
     } else {
       // 用户未登录
-      console.log('用户未登录wemol平台');
+      console.log('[AutoLogin] 用户未登录wemol平台');
+      console.log('[AutoLogin] 自动登录检测完成，结果: false');
       return false;
     }
   } catch (error) {
-    console.error('登录检测失败:', error);
+    console.error('[AutoLogin] 登录检测失败:', error);
     // 出错时默认认为未登录
     return false;
   }
