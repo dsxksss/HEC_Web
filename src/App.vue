@@ -712,7 +712,7 @@ export default {
     { role: 'user', content: question }
   ];
 
-  const apiUrl = '/api/v1/chat/completions';
+  const apiUrl = '/chat/completions'; // → 被代理到 https://chatai.dyg.com.cn/api/v1/completions
   const apiKey = 'fastgpt-mKIZmHlk5l9WSEuyMlqfqpEXEb4OzTc0nd5zFJp3DAWX0zxbGddjySq3eC';
 
   try {
