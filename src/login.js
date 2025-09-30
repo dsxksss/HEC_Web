@@ -59,15 +59,10 @@ export function setCookie(name, value, days = 7) {
  * @returns {boolean} - 用户是否已登录
  */
 export function checkWemolLogin() {
-  // 使用hasCookie函数检测cookie是否存在，而不是尝试读取其值
-  // 这对于可能设置了HttpOnly属性的cookie更有效
-  const hasAntUid = hasCookie('ant_uid');
-  const hasAntUidSys = hasCookie('ant_uid_sys');
-  
-  console.log('[CheckLogin] Cookie检测结果:', { hasAntUid, hasAntUidSys });
-  
-  // 只要ant_uid或ant_uid_sys存在，则认为用户已登录
-  return hasAntUid || hasAntUidSys;
+  // 不再依赖cookie，而是依赖当前用户信息缓存或API调用
+  // 简单实现：尝试获取当前用户信息
+  const userInfo = getCurrentUserInfo();
+  return !!userInfo;
 }
 
 /**
@@ -75,28 +70,19 @@ export function checkWemolLogin() {
  * @returns {Object|null} - 用户信息对象，如果未登录则返回null
  */
 export function getCurrentUserInfo() {
-  const antUid = getCookie('ant_uid');
-  const antUidSys = getCookie('ant_uid_sys');
-  const userName = getCookie('userName') || getCookie('user_name') || getCookie('Name');
-  
-  if (antUid || antUidSys) {
-    // 如果没有有效的用户名，使用默认的友好用户名
-    let displayName = userName;
-    if (!displayName || displayName.includes('用户') && !isNaN(displayName.replace('用户', ''))) {
-      displayName = 'HEC用户';
-    }
-    
-    return {
-      // 优先返回前台用户信息(ant_uid)
-      ant_uid: antUid || antUidSys, // 如果ant_uid不存在则使用antUidSys
-      ant_uid_sys: antUidSys, 
-      isFrontendUser: antUid !== null, // 标识是否为前台用户
-      // 使用处理后的用户名
-      Name: displayName
-    };
-  }
-  
-  return null;
+  // 注意：这里不再使用 getCookie，因为 HttpOnly cookie 无法读取
+  // 我们可以考虑缓存上一次成功的 API 返回数据，或者每次调用 API 获取
+
+  // 临时方案：尝试从本地存储或内存缓存中获取（如果你有缓存机制）
+  // 如果没有缓存，就返回 null，由调用方决定是否调用 API
+
+  // 更好的做法：调用 getUserSession() 或 renewUserSession() 来获取最新数据
+  // 但为避免循环依赖，这里先简化处理
+
+  // 你可以选择在这里调用一次 API（异步），但注意不要阻塞同步函数
+  // 所以这里暂时返回 null，让调用方去调用异步函数
+
+  return null; // 改为异步获取更合理
 }
 
 /**
@@ -106,192 +92,61 @@ export function getCurrentUserInfo() {
  */
 export async function autoLoginCheck() {
   console.log('[AutoLogin] 自动登录检测开始');
+
   try {
-    // 检查cookie中是否存在登录信息
-    // 使用hasCookie函数检测cookie是否存在，这对于可能设置了HttpOnly属性的cookie更有效
-    const hasAntUid = hasCookie('ant_uid');
-    const hasAntUidSys = hasCookie('ant_uid_sys');
-    
-    // 同时保留原有的getCookie调用，作为备份
-    const antUid = getCookie('ant_uid');
-    const antUidSys = getCookie('ant_uid_sys');
-    
-    console.log('[AutoLogin] Cookie检测结果:', {
-      hasAntUid, 
-      hasAntUidSys,
-      getCookieResult: { antUid: !!antUid, antUidSys: !!antUidSys }
+    // 直接调用API验证登录状态，不依赖cookie检测
+    const apiEndpoint = '/api/user/session_update?data=true';
+
+    console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
+
+    // 使用axios发送请求
+    const response = await axios.post(apiEndpoint, {}, {
+      withCredentials: true, // 发送cookie（包括HttpOnly）
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000 // 设置超时，避免卡住
     });
-    
-    // 用户要求：有antUid就用前台用户API，都有则以antUid数据用户为主
-    const shouldUseFrontendAPI = hasAntUid;
-    
-    if (hasAntUid || hasAntUidSys) {
-      // 用户已登录，构造用户信息对象
-      // 使用hasCookie的结果来确定用户类型，而不是依赖getCookie的值
-      const userInfo = {
-        ant_uid: antUid || 'cookie_available', // 如果getCookie失败，使用占位符
-        ant_uid_sys: antUidSys || (hasAntUidSys ? 'cookie_available' : null),
-        isFrontendUser: hasAntUid
-      };
-      console.log('[AutoLogin] 用户已登录wemol平台:', userInfo);
-      
-      // 根据用户要求使用正确的API验证登录是否有效
+
+    console.log('[AutoLogin] API请求完成，状态码:', response.status);
+
+    // 检查状态码是否成功
+    if (response.status >= 200 && response.status < 300) {
       try {
-        // 用户要求：所有情况都使用/api/user/session_update接口
-        const apiEndpoint = '/api/user/session_update?data=true';
-        
-        console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
-        
-        // 使用axios发送请求
-        const response = await axios.post(apiEndpoint, {}, {
-          withCredentials: true, // 发送cookie
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        console.log('[AutoLogin] API请求完成，状态码:', response.status);
-        
-        // 检查状态码是否在200-299范围内
-        if (response.status >= 200 && response.status < 300) {
-          try {
-            // axios会自动解析JSON响应，直接使用response.data
-            const sessionData = response.data;
-            console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
-            
-            // 改进错误检测逻辑，确保正确识别各种可能的错误格式
-            // 只有当Error对象包含有效错误信息时才认为是错误
-            const hasError = sessionData && (
-              // 检查Error对象是否包含实际的错误信息
-              (sessionData.Error && (sessionData.Error.Type || sessionData.Error.Value)) ||
-              // 检查其他常见的错误字段
-              (sessionData.error && typeof sessionData.error === 'string' && sessionData.error.trim() !== '') ||
-              sessionData.errors ||
-              (typeof sessionData.message === 'string' && sessionData.message.toLowerCase().includes('error'))
-            );
-            
-            if (hasError) {
-              console.error('[AutoLogin] API返回错误信息:', sessionData.Error || sessionData.error || sessionData.errors || sessionData.message);
-              // 即使API返回错误，但只要有ant_uid就尝试返回true
-              console.log('[AutoLogin] API返回错误，但有ant_uid，尝试继续登录');
-              
-              // 尝试使用cookie中的信息继续登录
-              const userCookieInfo = getCurrentUserInfo();
-              if (userCookieInfo) {
-                console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
-                console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
-                return true;
-              }
-              
-              console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误且无法使用cookie信息)');
-              return false;
-            }
-            
-            // 如果没有错误但有用户数据，视为登录成功
-            if (sessionData && (sessionData.Data && sessionData.Data.User)) {
-              console.log('[AutoLogin] API返回包含用户数据的响应，即使有空Error对象也视为成功');
-            }
-            
-            // 将会话数据中的用户信息合并到userInfo对象中
-            if (sessionData && sessionData.Data && sessionData.Data.User) {
-              // 更新用户信息
-              Object.assign(userInfo, sessionData.Data.User);
-              console.log('[AutoLogin] 更新后的用户信息:', userInfo);
-              
-              // 参考Python代码实现，检查用户状态是否为enabled
-              if (userInfo.status === 'enabled' || !userInfo.status) {
-                console.log('[AutoLogin] 用户状态验证通过，状态为enabled或未指定');
-                console.log('[AutoLogin] 自动登录检测完成，结果: true');
-                return true;
-              } else {
-                console.error('[AutoLogin] 用户状态不是enabled，当前状态:', userInfo.status);
-                // 为了更好的用户体验，即使状态不是enabled也尝试返回true
-                console.log('[AutoLogin] 用户状态异常，但仍尝试允许登录');
-                console.log('[AutoLogin] 自动登录检测完成，结果: true');
-                return true;
-              }
-            } else if (sessionData && sessionData.SessionData) {
-              // 兼容原有格式
-              Object.assign(userInfo, sessionData.SessionData);
-              console.log('[AutoLogin] 自动登录检测完成，结果: true');
-              return true;
-            } else {
-              // 如果响应数据格式不符合预期但状态码是200，也尝试返回true
-              console.log('[AutoLogin] 响应数据格式不符合预期，但状态码为成功');
-              console.log('[AutoLogin] 自动登录检测完成，结果: true');
-              return true;
-            }
-          } catch (jsonError) {
-            console.error('[AutoLogin] JSON解析失败:', jsonError);
-            // JSON解析失败，但有ant_uid，尝试返回true
-            console.log('[AutoLogin] JSON解析失败，但有ant_uid，尝试返回true');
-            
-            const userCookieInfo = getCurrentUserInfo();
-            if (userCookieInfo) {
-              console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
-              console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
-              return true;
-            }
-            
-            console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败且无法使用cookie信息)');
-            return false;
-          }
+        const sessionData = response.data;
+        console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
+
+        // 判断是否真正登录成功（检查是否有用户数据）
+        const hasUserData = sessionData?.Data?.User || sessionData?.SessionData;
+
+        if (hasUserData) {
+          console.log('[AutoLogin] 用户已登录（通过API验证）');
+          console.log('[AutoLogin] 自动登录检测完成，结果: true');
+          return true;
         } else {
-          console.error('[AutoLogin] 会话验证失败，API返回非成功状态:', response.status);
-          // API返回非成功状态，但有ant_uid，尝试返回true
-          console.log('[AutoLogin] API返回非成功状态，但有ant_uid，尝试返回true');
-          
-          const userCookieInfo = getCurrentUserInfo();
-          if (userCookieInfo) {
-            console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
-            console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
-            return true;
-          }
-          
-          console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回非成功状态且无法使用cookie信息)');
+          console.warn('[AutoLogin] API返回成功但无用户数据，可能未登录');
+          console.log('[AutoLogin] 自动登录检测完成，结果: false');
           return false;
         }
-      } catch (sessionError) {
-        console.error('[AutoLogin] 会话验证请求失败:', sessionError);
-        // API请求失败，但有ant_uid，尝试返回true
-        console.log('[AutoLogin] API请求失败，但有ant_uid，尝试返回true');
-        
-        const userCookieInfo = getCurrentUserInfo();
-        if (userCookieInfo) {
-          console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
-          console.log('[AutoLogin] 自动登录检测完成，结果: true (使用cookie信息)');
-          return true;
-        }
-        
-        console.log('[AutoLogin] 自动登录检测完成，结果: false (请求失败且无法使用cookie信息)');
+
+      } catch (jsonError) {
+        console.error('[AutoLogin] JSON解析失败:', jsonError);
+        console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败)');
         return false;
       }
     } else {
-      // 用户未登录
-      console.log('[AutoLogin] 用户未登录wemol平台');
+      console.error('[AutoLogin] 会话验证失败，API返回非成功状态:', response.status);
       console.log('[AutoLogin] 自动登录检测完成，结果: false');
       return false;
     }
-  } catch (error) {
-    console.error('[AutoLogin] 登录检测失败:', error);
-    // 出错时，如果有cookie，尝试返回true
-    const antUid = getCookie('ant_uid');
-    const antUidSys = getCookie('ant_uid_sys');
-    
-    if (antUid || antUidSys) {
-      console.log('[AutoLogin] 发生异常但有cookie信息，尝试返回true');
-      const userCookieInfo = getCurrentUserInfo();
-      if (userCookieInfo) {
-        console.log('[AutoLogin] 使用cookie信息继续登录:', userCookieInfo);
-        return true;
-      }
-    }
-    
-    // 如果没有cookie，才返回false
-    console.log('[AutoLogin] 登录检测失败且无有效cookie，返回false');
+
+  } catch (sessionError) {
+    console.error('[AutoLogin] 会话验证请求失败:', sessionError);
+    console.log('[AutoLogin] 自动登录检测完成，结果: false (请求失败)');
     return false;
   }
 }
+
 
 /**
  * 根据用户类型获取对应的退出登录API
