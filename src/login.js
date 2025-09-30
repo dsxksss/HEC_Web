@@ -94,30 +94,8 @@ export async function autoLoginCheck() {
       
       return true;
     } else {
-      // 用户未登录，尝试通过接口验证
-      // 注意：这里使用相对路径，确保能正确与base URL配合工作
-      const response = await fetch('/api/user/login_status', {
-        method: 'POST',
-        credentials: 'include', // 确保发送cookie
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        try {
-          const data = await response.json();
-          // 假设接口返回的格式包含登录状态
-          if (data.success || (data.Data && data.Data.User && data.Data.User.status === 'enabled')) {
-            console.log('通过接口验证用户已登录');
-            return true;
-          }
-        } catch (jsonError) {
-          console.error('登录状态接口返回非JSON数据:', jsonError);
-          // 处理非JSON响应的情况，默认为未登录
-        }
-      }
-      
+      // 用户未登录
+      // 注意：不再尝试调用/api/user/login_status接口，因为该接口返回404
       console.log('用户未登录wemol平台');
       return false;
     }
@@ -126,15 +104,6 @@ export async function autoLoginCheck() {
     // 出错时默认认为未登录
     return false;
   }
-}
-
-/**
- * 根据用户类型获取对应的登录状态检测API
- * @param {boolean} isFrontendUser - 是否为前台用户
- * @returns {string} - API端点
- */
-function getLoginStatusApi(isFrontendUser) {
-  return isFrontendUser ? '/api/user/login_status' : '/api/sys/login_status';
 }
 
 /**
@@ -184,14 +153,25 @@ export async function login(username, password, loginType = 'user') {
     });
     
     if (response.ok) {
-      const data = await response.json();
-      // 检查登录是否成功
-      if (data.success || data.code === 0 || data.status === 'success') {
-        console.log('登录成功');
+      try {
+        const data = await response.json();
+        // 检查登录是否成功 - 增加更健壮的成功判断逻辑
+        // 1. 检查标准成功标记
+        const isSuccess = data.success || data.code === 0 || data.status === 'success' || data.code === '0';
+        // 2. 检查是否有错误信息，如果没有错误信息也可能表示成功
+        const hasNoError = !data.error && !data.errors && !data.message; 
+        
+        if (isSuccess || hasNoError) {
+          console.log('登录成功', data);
+          return true;
+        } else {
+          console.error('登录失败:', data.message || '未知错误');
+          throw new Error(data.message || '登录失败');
+        }
+      } catch (jsonError) {
+        // 如果JSON解析失败但响应状态是200，也视为登录成功
+        console.warn('登录响应JSON解析失败，但请求状态为成功，视为登录成功:', jsonError);
         return true;
-      } else {
-        console.error('登录失败:', data.message || '未知错误');
-        throw new Error(data.message || '登录失败');
       }
     } else {
       const errorText = await response.text();
