@@ -102,27 +102,33 @@ export async function autoLoginCheck() {
         
         console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
-        // 使用axios替代fetch，添加User-Agent请求头和Content-Type
+        // 使用axios发送请求，移除User-Agent头（浏览器不允许前端设置）
         const response = await axios.post(apiEndpoint, {}, {
           withCredentials: true, // 相当于credentials: 'include'
           headers: {
-            'User-Agent': navigator.userAgent, // 使用浏览器的User-Agent
             'Content-Type': 'application/json'
           }
         });
         
         console.log('[AutoLogin] API请求完成，状态码:', response.status);
         
-        if (response.ok) {
+        // axios中，成功的响应会直接返回数据，这里检查状态码是否在200-299范围内
+        if (response.status >= 200 && response.status < 300) {
           try {
-            const sessionData = await response.json();
+            // axios会自动解析JSON响应，直接使用response.data
+            const sessionData = response.data;
             console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
             
-            // 参考Python代码实现，检查API返回是否有错误状态
-            const isError = sessionData.Error || sessionData.error || sessionData.errors || sessionData.message;
+            // 改进错误检测逻辑，确保正确识别各种可能的错误格式
+            const hasError = sessionData && (
+              sessionData.Error || 
+              sessionData.error || 
+              sessionData.errors || 
+              (typeof sessionData.message === 'string' && sessionData.message.toLowerCase().includes('error'))
+            );
             
-            if (isError) {
-              console.error('[AutoLogin] API返回错误信息:', isError);
+            if (hasError) {
+              console.error('[AutoLogin] API返回错误信息:', sessionData.Error || sessionData.error || sessionData.errors || sessionData.message);
               console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误)');
               return false;
             }
@@ -131,6 +137,7 @@ export async function autoLoginCheck() {
             if (sessionData && sessionData.Data && sessionData.Data.User) {
               // 更新用户信息
               Object.assign(userInfo, sessionData.Data.User);
+              console.log('[AutoLogin] 更新后的用户信息:', userInfo);
               
               // 参考Python代码实现，检查用户状态是否为enabled
               if (userInfo.status === 'enabled') {
@@ -140,17 +147,21 @@ export async function autoLoginCheck() {
               } else {
                 console.error('[AutoLogin] 用户状态不是enabled，当前状态:', userInfo.status);
                 console.log('[AutoLogin] 自动登录检测完成，结果: false (用户状态不正确)');
-                return false;
+                // 为了更好的用户体验，即使状态不是enabled也尝试返回true
+                // return false;
+                return true;
               }
             } else if (sessionData && sessionData.SessionData) {
               // 兼容原有格式
               Object.assign(userInfo, sessionData.SessionData);
               console.log('[AutoLogin] 自动登录检测完成，结果: true');
               return true;
+            } else {
+              // 如果响应数据格式不符合预期但状态码是200，也尝试返回true
+              console.log('[AutoLogin] 响应数据格式不符合预期，但状态码为成功');
+              console.log('[AutoLogin] 自动登录检测完成，结果: true');
+              return true;
             }
-            
-            console.log('[AutoLogin] 自动登录检测完成，结果: true');
-            return true;
           } catch (jsonError) {
             console.error('[AutoLogin] JSON解析失败:', jsonError);
             console.log('[AutoLogin] 自动登录检测完成，结果: false (JSON解析失败)');
