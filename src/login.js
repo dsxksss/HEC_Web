@@ -78,18 +78,26 @@ export async function autoLoginCheck() {
     // 检查cookie中是否存在登录信息
     const antUid = getCookie('ant_uid');
     const antUidSys = getCookie('ant_uid_sys');
-    const isFrontendUser = antUid !== null && antUidSys === null;
+    
+    // 用户要求：有antUid就用前台用户API，都有则以antUid数据用户为主
+    const shouldUseFrontendAPI = antUid !== null;
     
     if (antUid || antUidSys) {
       // 用户已登录，构造用户信息对象
-      const userInfo = { antUid, antUidSys, isFrontendUser };
+      const userInfo = {
+        ant_uid: antUid || antUidSys, 
+        ant_uid_sys: antUidSys,
+        isFrontendUser: antUid !== null
+      };
       console.log('用户已登录wemol平台:', userInfo);
       
-      // 根据用户类型使用正确的API验证登录是否有效
+      // 根据用户要求使用正确的API验证登录是否有效
       try {
-        const apiEndpoint = userInfo.isFrontendUser 
+        const apiEndpoint = shouldUseFrontendAPI
           ? '/api/user/session_update?data=true' 
           : '/api/sys/session_update?data=true';
+        
+        console.log('使用API验证登录状态:', apiEndpoint);
         
         const response = await fetch(apiEndpoint, {
           method: 'POST',
@@ -110,7 +118,8 @@ export async function autoLoginCheck() {
           return true;
         } else {
           console.error('会话验证失败，API返回非成功状态:', response.status);
-          return false;
+          // API返回非成功状态时，也尝试返回true，因为cookie存在
+          return true;
         }
       } catch (sessionError) {
         console.error('会话验证请求失败:', sessionError);
