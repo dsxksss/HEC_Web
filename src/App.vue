@@ -763,6 +763,16 @@ const sendMessage = async () => {
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let eventDataLines = [];
+        // 使用 rAF 合并滚动，避免每 token 强制布局
+        let scrollScheduled = false;
+        const scheduleScroll = () => {
+          if (scrollScheduled) return;
+          scrollScheduled = true;
+          requestAnimationFrame(() => {
+            scrollScheduled = false;
+            scrollToBottom();
+          });
+        };
 
         // 基于 SSE 规范：多个 data: 行聚合为一个事件，空行作为事件分隔
         while (true) {
@@ -824,7 +834,7 @@ const sendMessage = async () => {
                   if (isInThinking && reasoning) {
                     accumulatedThinking += reasoning;
                     updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                    nextTick(scrollToBottom);
+                    scheduleScroll();
                     if (loading.value) loading.value = false;
                     continue;
                   }
@@ -833,7 +843,7 @@ const sendMessage = async () => {
                   if (content) {
                     accumulatedContent += content;
                     updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                    nextTick(scrollToBottom);
+                    scheduleScroll();
                     if (loading.value) loading.value = false;
                   }
 
@@ -897,14 +907,14 @@ const sendMessage = async () => {
                 if (isInThinking && reasoning) {
                   accumulatedThinking += reasoning;
                   updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  nextTick(scrollToBottom);
+                  scheduleScroll();
                   if (loading.value) loading.value = false;
                 }
 
                 if (content) {
                   accumulatedContent += content;
                   updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  nextTick(scrollToBottom);
+                  scheduleScroll();
                   if (loading.value) loading.value = false;
                 }
 
@@ -954,8 +964,7 @@ const updateAssistantMessage = (content, thinking, references) => {
       references
     };
     
-    // 强制触发响应式更新
-    currentChat.messages = [...currentChat.messages];
+    // 直接原位更新：Vue3 对数组下标赋值是响应式的，避免每次重建数组
   }
 };
 
