@@ -115,7 +115,7 @@ export async function autoLoginCheck() {
  * @returns {string} - API端点
  */
 function getLogoutApi(isFrontendUser) {
-  return isFrontendUser ? '/api/user/quit' : '/api/sys/quit';
+  return isFrontendUser ? '/api/user/quit' : '/api/user/quit';
 }
 
 /**
@@ -159,7 +159,7 @@ export async function logout(allSessions = true) {
     if (allSessions) {
       await Promise.allSettled([
         axios.post('/api/user/quit', {}, { withCredentials: true }),
-        axios.post('/api/sys/quit', {}, { withCredentials: true })
+        axios.post('/api/user/quit', {}, { withCredentials: true })
       ]);
     } else {
       await axios.post('/api/user/quit', {}, { withCredentials: true });
