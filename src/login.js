@@ -87,7 +87,7 @@ export async function autoLoginCheck() {
     const shouldUseFrontendAPI = antUid !== null;
     
     if (antUid || antUidSys) {
-      // 用户已登录，构造用户信息对象
+      // 用户已登录，构造用户信息对象（使用实际cookie值）
       const userInfo = {
         ant_uid: antUid || antUidSys, 
         ant_uid_sys: antUidSys,
@@ -97,9 +97,8 @@ export async function autoLoginCheck() {
       
       // 根据用户要求使用正确的API验证登录是否有效
       try {
-        const apiEndpoint = shouldUseFrontendAPI
-          ? '/api/user/session_update?data=true' 
-          : '/api/sys/session_update?data=true';
+        // 用户要求：所有情况都使用/api/user/session_update接口
+        const apiEndpoint = '/api/user/session_update?data=true';
         
         console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
@@ -393,11 +392,8 @@ export async function renewUserSession(updateData = false, useSysApi = false) {
       return null;
     }
     
-    // 根据用户类型选择API端点或使用指定的API类型
-    const isSysUser = useSysApi || !userInfo.isFrontendUser;
-    const apiEndpoint = isSysUser 
-      ? `/api/sys/session_update?data=${updateData}` 
-      : `/api/user/session_update?data=${updateData}`;
+    // 用户要求：所有情况都使用/api/user/session_update接口
+    const apiEndpoint = `/api/user/session_update?data=${updateData}`;
     
     // 调用session_update接口续期会话
     const response = await axios.post(apiEndpoint, {}, {
