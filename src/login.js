@@ -120,10 +120,13 @@ export async function autoLoginCheck() {
             console.log('[AutoLogin] 会话验证成功，返回数据:', sessionData);
             
             // 改进错误检测逻辑，确保正确识别各种可能的错误格式
+            // 只有当Error对象包含有效错误信息时才认为是错误
             const hasError = sessionData && (
-              sessionData.Error || 
-              sessionData.error || 
-              sessionData.errors || 
+              // 检查Error对象是否包含实际的错误信息
+              (sessionData.Error && (sessionData.Error.Type || sessionData.Error.Value)) ||
+              // 检查其他常见的错误字段
+              (sessionData.error && typeof sessionData.error === 'string' && sessionData.error.trim() !== '') ||
+              sessionData.errors ||
               (typeof sessionData.message === 'string' && sessionData.message.toLowerCase().includes('error'))
             );
             
@@ -131,6 +134,11 @@ export async function autoLoginCheck() {
               console.error('[AutoLogin] API返回错误信息:', sessionData.Error || sessionData.error || sessionData.errors || sessionData.message);
               console.log('[AutoLogin] 自动登录检测完成，结果: false (API返回错误)');
               return false;
+            }
+            
+            // 如果没有错误但有用户数据，视为登录成功
+            if (sessionData && (sessionData.Data && sessionData.Data.User)) {
+              console.log('[AutoLogin] API返回包含用户数据的响应，即使有空Error对象也视为成功');
             }
             
             // 将会话数据中的用户信息合并到userInfo对象中
