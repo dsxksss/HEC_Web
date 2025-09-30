@@ -455,6 +455,7 @@
 import { ref, reactive, onMounted, nextTick } from 'vue';
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import { checkWemolLogin, getCurrentUserInfo, autoLoginCheck, handleNotLoggedIn, login, logout } from './login.js';
+import axios from 'axios';
 
 export default {
   name: 'App',
@@ -763,200 +764,236 @@ export default {
         
         currentChat.messages.push(responseElement);
           
-        // 使用fetch API处理SSE流式响应
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // 注意：根据用户要求，这里使用相对路径，项目会嵌入到wemol平台
-            // 所以不需要设置Authorization头，而是依赖cookie凭证
-            'Accept': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'X-Requested-With': 'XMLHttpRequest'
+        // 使用axios处理请求
+        const CancelToken = axios.CancelToken;
+        const source = CancelToken.source();
+        controller.value = source; // 保存到controller中以便取消
+
+        const response = await axios.post(apiUrl, 
+          {
+            stream: true,
+            messages: messages,
+            model: 'DeepSeek-R1'
           },
-          // 确保发送cookie凭证
-          credentials: 'include',
-          body: JSON.stringify({
-            stream: true,
-            messages: messages,
-            model: 'DeepSeek-R1'
-          }),
-          // 使用credentials: 'include'来确保在重定向过程中也发送凭证
-          credentials: 'include',
-          mode: 'cors',
-          signal: controller.value.signal
-        });
+          {
+            cancelToken: source.token,
+            withCredentials: true, // 相当于credentials: 'include'
+            responseType: 'stream', // 处理流式响应
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          }
+        );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`HTTP错误! 状态码: ${response.status}, 错误信息: ${errorText}`);
-          console.error('请求URL:', apiUrl);
-          console.error('请求头:', {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'X-Requested-With': 'XMLHttpRequest'
-          });
-          console.error('请求体:', JSON.stringify({
-            stream: true,
-            messages: messages,
-            model: 'DeepSeek-R1'
-          }, null, 2));
-          throw new Error(`HTTP错误! 状态码: ${response.status}, 错误信息: ${errorText}`);
-        }
-
-        const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let done = false;
+        let buffer = '';
 
-        while (!done) {
-          // 检查是否已取消请求
-          if (controller.value.signal.aborted) {
-            reader.cancel();
-            done = true;
-            break;
-          }
-          
-          const { value, done: readerDone } = await reader.read();
-          done = readerDone;
-          
-          if (value) {
-            const chunk = decoder.decode(value, { stream: true });
-            console.log('接收到的原始SSE数据块:', chunk);
-            // 处理SSE数据格式
-            const lines = chunk.split('\n');
-            console.log('分割后的行数:', lines.length);
+        // 处理流式响应
+        const stream = response.data;
+        
+        // 监听data事件
+        stream.on('data', (chunk) => {
+          try {
+            const data = decoder.decode(chunk, { stream: true });
+            buffer += data;
+            console.log('接收到的原始SSE数据块:', data);
             
-            for (const line of lines) {
-              console.log('处理行:', line);
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                console.log('提取的数据内容:', data);
+            // 处理buffer中的所有完整行
+            processBuffer();
+          } catch (error) {
+            console.error('处理数据块时出错:', error);
+          }
+        });
+
+        // 监听end事件
+        stream.on('end', () => {
+          // 处理剩余的buffer内容
+          if (buffer) {
+            processBuffer();
+          }
+          done = true;
+          
+          // 确保loading状态被正确重置
+          if (loading.value) {
+            loading.value = false;
+          }
+        });
+
+        // 监听错误事件
+        stream.on('error', (error) => {
+          console.error('流式响应错误:', error);
+          loading.value = false;
+          
+          // 添加错误消息
+          const errorMessage = {
+            role: 'assistant',
+            content: language.value === 'zh' 
+              ? `网络连接失败，请检查您的网络设置或稍后再试。` 
+              : `Network connection failed. Please check your network settings or try again later.`,
+            references: [],
+            timestamp: new Date()
+          };
+          currentChat.messages.push(errorMessage);
+        });
+
+        // 处理buffer中的SSE数据行
+        function processBuffer() {
+          let lineEndIndex;
+          while ((lineEndIndex = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.substring(0, lineEndIndex).trim();
+            buffer = buffer.substring(lineEndIndex + 1);
+            
+            if (line === '') continue;
+            
+            console.log('处理行:', line);
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              console.log('提取的数据内容:', data);
+              
+              if (data === '[DONE]') {
+                // 保存到历史记录
+                if (chatHistory.value.length >= 10) {
+                  chatHistory.value.shift();
+                }
+                chatHistory.value.push({
+                  question: question,
+                  messages: [...currentChat.messages],
+                  timestamp: new Date()
+                });
+                saveChatHistory();
+                // 响应完成时设置loading为false
+                loading.value = false;
+                return;
+              }
+              
+              try {
+                const parsed = JSON.parse(data);
                 
-                if (data === '[DONE]') {
-                  // 保存到历史记录
-                  if (chatHistory.value.length >= 10) {
-                    chatHistory.value.shift();
-                  }
-                  chatHistory.value.push({
-                    question: question,
-                    messages: [...currentChat.messages],
-                    timestamp: new Date()
-                  });
-                  saveChatHistory();
-                  // 响应完成时设置loading为false
+                // 检查不同的响应格式
+                let content = null;
+                console.log('完整的parsed响应:', JSON.stringify(parsed, null, 2));
+                
+                // 首先检查是否有任何内容，如果有就停止loading
+                const hasContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content;
+                const hasReasoningContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.reasoning_content;
+                
+                if ((hasContent || hasReasoningContent) && loading.value) {
+                  console.log('检测到响应内容，停止loading状态');
                   loading.value = false;
-                  break;
                 }
                 
-                try {
-                  const parsed = JSON.parse(data);
+                // 如果只有reasoning_content而没有content，说明这是答案内容，不是思考过程
+                if (hasReasoningContent && !hasContent) {
+                  console.log('检测到只有reasoning_content，将其作为答案内容显示');
+                  isInThinkingMode.value = false; // 强制退出思考模式
+                }
+                
+                // 格式1: choices[0].delta.content (标准OpenAI格式) - 优先显示最终答案
+                if (hasContent) {
+                  content = parsed.choices[0].delta.content;
+                  console.log('使用格式1 - choices[0].delta.content:', content);
+                }
+                // 格式2: choices[0].delta.reasoning_content (DeepSeek-R1内容) - 仅在没有content时显示
+                else if (hasReasoningContent) {
+                  const reasoningContent = parsed.choices[0].delta.reasoning_content;
                   
-                  // 检查不同的响应格式
-                  let content = null;
-                  console.log('完整的parsed响应:', JSON.stringify(parsed, null, 2));
-                  
-                  // 首先检查是否有任何内容，如果有就停止loading
-                  const hasContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.content;
-                  const hasReasoningContent = parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.reasoning_content;
-                  
-                  if ((hasContent || hasReasoningContent) && loading.value) {
-                    console.log('检测到响应内容，停止loading状态');
-                    loading.value = false;
-                  }
-                  
-                  // 如果只有reasoning_content而没有content，说明这是答案内容，不是思考过程
-                  if (hasReasoningContent && !hasContent) {
-                    console.log('检测到只有reasoning_content，将其作为答案内容显示');
-                    isInThinkingMode.value = false; // 强制退出思考模式
-                  }
-                  
-                  // 格式1: choices[0].delta.content (标准OpenAI格式) - 优先显示最终答案
-                  if (hasContent) {
-                    content = parsed.choices[0].delta.content;
-                    console.log('使用格式1 - choices[0].delta.content:', content);
-                  }
-                  // 格式2: choices[0].delta.reasoning_content (DeepSeek-R1内容) - 仅在没有content时显示
-                  else if (hasReasoningContent) {
-                    const reasoningContent = parsed.choices[0].delta.reasoning_content;
-                    
-                    // 检查是否是思考过程的开始标记
-                    if (reasoningContent === '<think>') {
-                      isInThinkingMode.value = true;
-                      thinkingContent.value = '';
-                      showThinking.value = true;
-                      console.log('开始思考过程');
-                      continue; // 跳过思考开始标记
-                    }
-                    
-                    // 检查是否是思考过程的结束标记
-                    if (reasoningContent === '</think>') {
-                      isInThinkingMode.value = false;
-                      console.log('结束思考过程');
-                      continue; // 跳过思考结束标记
-                    }
-                    
-                    // 如果在思考模式中，收集思考内容
-                    if (isInThinkingMode.value) {
-                      thinkingContent.value += reasoningContent;
-                      console.log('收集思考过程内容:', reasoningContent);
-                      // 强制Vue重新渲染思考内容
-                      nextTick(() => {
-                        scrollToBottom();
-                      });
-                      continue;
-                    }
-                    
-                    // 只有在非思考模式下才显示内容
-                    content = reasoningContent;
-                    console.log('使用格式2 - choices[0].delta.reasoning_content:', content);
-                  }
-                  // 格式3: choices[0].text (替代格式)
-                  else if (parsed.choices && parsed.choices[0] && parsed.choices[0].text) {
-                    content = parsed.choices[0].text;
-                    console.log('使用格式3 - choices[0].text:', content);
-                  }
-                  // 格式4: content字段直接返回
-                  else if (parsed.content) {
-                    content = parsed.content;
-                    console.log('使用格式4 - content字段:', content);
-                  }
-                  // 格式5: data字段
-                  else if (parsed.data) {
-                    content = parsed.data;
-                    console.log('使用格式5 - data字段:', content);
+                  // 检查是否是思考过程的开始标记
+                  if (reasoningContent === '</think>') {
+                    isInThinkingMode.value = true;
+                    thinkingContent.value = '';
+                    showThinking.value = true;
+                    console.log('开始思考过程');
+                    continue; // 跳过思考开始标记
                   }
                   
-                  if (content) {
-                    responseElement.content += content;
-                    // 强制Vue重新渲染
-                    currentChat.messages = [...currentChat.messages];
-                    // 每次更新内容后滚动到底部
+                  // 检查是否是思考过程的结束标记
+                  if (reasoningContent === '</think>') {
+                    isInThinkingMode.value = false;
+                    console.log('结束思考过程');
+                    continue; // 跳过思考结束标记
+                  }
+                  
+                  // 如果在思考模式中，收集思考内容
+                  if (isInThinkingMode.value) {
+                    thinkingContent.value += reasoningContent;
+                    console.log('收集思考过程内容:', reasoningContent);
+                    // 强制Vue重新渲染思考内容
                     nextTick(() => {
                       scrollToBottom();
                     });
-                  } else {
-                    console.log('未找到有效的内容字段，响应结构:', parsed);
+                    continue;
                   }
                   
-                  // 处理可能的参考文献
-                  if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.references) {
-                    responseElement.references = parsed.choices[0].delta.references;
-                  }
-                } catch (e) {
-                  console.error('解析响应失败:', e, '响应内容:', data);
+                  // 只有在非思考模式下才显示内容
+                  content = reasoningContent;
+                  console.log('使用格式2 - choices[0].delta.reasoning_content:', content);
                 }
+                // 格式3: choices[0].text (替代格式)
+                else if (parsed.choices && parsed.choices[0] && parsed.choices[0].text) {
+                  content = parsed.choices[0].text;
+                  console.log('使用格式3 - choices[0].text:', content);
+                }
+                // 格式4: content字段直接返回
+                else if (parsed.content) {
+                  content = parsed.content;
+                  console.log('使用格式4 - content字段:', content);
+                }
+                // 格式5: data字段
+                else if (parsed.data) {
+                  content = parsed.data;
+                  console.log('使用格式5 - data字段:', content);
+                }
+                
+                if (content) {
+                  responseElement.content += content;
+                  // 强制Vue重新渲染
+                  currentChat.messages = [...currentChat.messages];
+                  // 每次更新内容后滚动到底部
+                  nextTick(() => {
+                    scrollToBottom();
+                  });
+                } else {
+                  console.log('未找到有效的内容字段，响应结构:', parsed);
+                }
+                
+                // 处理可能的参考文献
+                if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && parsed.choices[0].delta.references) {
+                  responseElement.references = parsed.choices[0].delta.references;
+                }
+              } catch (e) {
+                console.error('解析响应失败:', e, '响应内容:', data);
               }
             }
           }
         }
+
+        // 等待流式响应完成（或者被取消）
+        await new Promise((resolve, reject) => {
+          stream.on('end', resolve);
+          stream.on('error', reject);
+          
+          // 检查是否已取消请求
+          const checkCancelled = () => {
+            if (controller.value && controller.value.reason) {
+              reject(new Error('Request cancelled'));
+            } else if (!done) {
+              setTimeout(checkCancelled, 100);
+            }
+          };
+          
+          checkCancelled();
+        });
+
       } catch (error) {
         console.error('发送消息失败:', error);
         loading.value = false;
         
         // 处理不同类型的错误
-        if (error.name === 'AbortError') {
+        if (error.name === 'AbortError' || error.message === 'Request cancelled') {
           console.error('请求超时: API响应时间超过300秒');
           // 添加错误消息
           const errorMessage = {
@@ -968,7 +1005,7 @@ export default {
             timestamp: new Date()
           };
           currentChat.messages.push(errorMessage);
-        } else if (error.message.includes('Failed to fetch')) {
+        } else if (error.message.includes('Network Error')) {
           console.error('网络请求失败:', error);
           // 添加错误消息
           const errorMessage = {
@@ -1006,7 +1043,13 @@ export default {
     // 取消当前请求
     const cancelRequest = () => {
       if (controller.value) {
-        controller.value.abort();
+        // 使用axios的取消方式
+        if (controller.value.cancel) {
+          controller.value.cancel('Request cancelled');
+        } else if (controller.value.abort) {
+          // 向后兼容，保留原有的abort方法
+          controller.value.abort();
+        }
         loading.value = false;
         // 移除最后添加的助手消息（如果有的话）
         if (currentChat.messages.length > 0 && 

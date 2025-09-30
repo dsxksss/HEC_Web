@@ -1,4 +1,5 @@
 // wemol平台登录检测功能
+import axios from 'axios';
 
 /**
  * 从cookie中获取指定名称的值
@@ -102,12 +103,12 @@ export async function autoLoginCheck() {
         
         console.log('[AutoLogin] 使用API验证登录状态:', apiEndpoint);
         
-        // 参考Python代码实现，添加User-Agent请求头
-        const response = await fetch(apiEndpoint, {
-          method: 'POST',
-          credentials: 'include',
+        // 使用axios替代fetch，添加User-Agent请求头和Content-Type
+        const response = await axios.post(apiEndpoint, {}, {
+          withCredentials: true, // 相当于credentials: 'include'
           headers: {
-            'User-Agent': navigator.userAgent // 使用浏览器的User-Agent
+            'User-Agent': navigator.userAgent, // 使用浏览器的User-Agent
+            'Content-Type': 'application/json'
           }
         });
         
@@ -213,17 +214,15 @@ export async function login(username, password, loginType = 'user') {
     // 根据登录类型选择API端点
     const apiEndpoint = loginType === 'sys' ? '/api/sys/login' : '/api/user/login';
     
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      credentials: 'include', // 确保发送cookie
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const response = await axios.post(apiEndpoint, {
         Name: username,
         Passwd: password
-      })
-    });
+      }, {
+        withCredentials: true, // 确保发送cookie
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
     
     if (response.ok) {
       try {
@@ -292,17 +291,15 @@ export async function logout(allSessions = true) {
     
     if (allSessions) {
       // 退出所有会话，同时调用用户和系统的退出登录API
-      const userLogoutPromise = fetch('/api/user/logout', {
-        method: 'POST',
-        credentials: 'include',
+      const userLogoutPromise = axios.post('/api/user/logout', {}, {
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
         }
       });
       
-      const sysLogoutPromise = fetch('/api/sys/logout', {
-        method: 'POST',
-        credentials: 'include',
+      const sysLogoutPromise = axios.post('/api/sys/logout', {}, {
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
         }
@@ -322,9 +319,8 @@ export async function logout(allSessions = true) {
       const userInfo = getCurrentUserInfo();
       const apiEndpoint = userInfo && userInfo.isFrontendUser ? '/api/user/logout' : '/api/sys/logout';
       
-      const response = await fetch(apiEndpoint, {
-        method: 'POST',
-        credentials: 'include',
+      const response = await axios.post(apiEndpoint, {}, {
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
         }
@@ -362,9 +358,8 @@ export async function getUserSession(useSysApi = false) {
     const apiEndpoint = isSysUser ? '/api/sys/session_data' : '/api/user/session_data';
     
     // 调用新的session_data接口获取用户会话信息
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      credentials: 'include',
+    const response = await axios.post(apiEndpoint, {}, {
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       }
@@ -405,9 +400,8 @@ export async function renewUserSession(updateData = false, useSysApi = false) {
       : `/api/user/session_update?data=${updateData}`;
     
     // 调用session_update接口续期会话
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      credentials: 'include',
+    const response = await axios.post(apiEndpoint, {}, {
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       }
