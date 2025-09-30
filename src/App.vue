@@ -505,6 +505,8 @@ export default {
     const renderTimer = ref(null);
     const streamEnded = ref(false);
     const pendingQuestion = ref('');
+    // 思考过程“打字机式”渲染队列
+    const thinkingRenderQueue = ref('');
 
     // 处理登录请求
     const handleLogin = async () => {
@@ -717,6 +719,7 @@ const sendMessage = async () => {
       renderQueue.value = '';
       if (renderTimer.value) { clearInterval(renderTimer.value); renderTimer.value = null; }
       streamEnded.value = false;
+      thinkingRenderQueue.value = '';
 
       currentChat.messages.push({
         role: 'user',
@@ -774,15 +777,15 @@ const sendMessage = async () => {
         let buffer = '';
         let eventDataLines = [];
         // rAF 滚动（统一在下方只定义一次）
-        // 打字机式渲染：每秒输出2个字符
-        const CHARS_PER_TICK = 2;
+        // 打字机式渲染：每秒输出约6个字符（内容+思考总和）
+        const TOTAL_CHARS_PER_TICK = 6;
         const TICK_MS = 1000;
         const startPacedRender = () => {
           if (renderTimer.value) return;
           renderTimer.value = setInterval(() => {
             try {
-              // 如果无内容待输出
-              if (!renderQueue.value || renderQueue.value.length === 0) {
+              // 如果无内容待输出（内容与思考均为空）
+              if ((!renderQueue.value || renderQueue.value.length === 0) && (!thinkingRenderQueue.value || thinkingRenderQueue.value.length === 0)) {
                 // 若后端已结束且队列空，执行最终保存
                 if (streamEnded.value) {
                   chatHistory.value.push({
@@ -803,14 +806,33 @@ const sendMessage = async () => {
                 renderTimer.value = null;
                 return;
               }
-              const out = renderQueue.value.slice(0, CHARS_PER_TICK);
-              renderQueue.value = renderQueue.value.slice(CHARS_PER_TICK);
-              // 追加到最后一条助手消息
-              const lastIndex = currentChat.messages.length - 1;
-              if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
-                currentChat.messages[lastIndex].content += out;
-                scheduleScroll();
+              // 本次tick可输出总字符数
+              let remaining = TOTAL_CHARS_PER_TICK;
+
+              // 先输出思考过程（最多占一半，若思考为空则全部给内容）
+              const thinkingBudget = Math.min(3, remaining);
+              if (thinkingRenderQueue.value && thinkingRenderQueue.value.length > 0 && thinkingBudget > 0) {
+                const thinkOut = thinkingRenderQueue.value.slice(0, thinkingBudget);
+                thinkingRenderQueue.value = thinkingRenderQueue.value.slice(thinkingBudget);
+                const lastIndex = currentChat.messages.length - 1;
+                if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
+                  const prev = currentChat.messages[lastIndex].thinkingContent || '';
+                  currentChat.messages[lastIndex].thinkingContent = prev + thinkOut;
+                }
+                remaining -= thinkingBudget;
               }
+
+              // 再输出正式内容（剩余全部）
+              if (remaining > 0 && renderQueue.value && renderQueue.value.length > 0) {
+                const contentOut = renderQueue.value.slice(0, remaining);
+                renderQueue.value = renderQueue.value.slice(remaining);
+                const lastIndex = currentChat.messages.length - 1;
+                if (lastIndex >= 0 && currentChat.messages[lastIndex].role === 'assistant') {
+                  currentChat.messages[lastIndex].content += contentOut;
+                }
+              }
+
+              scheduleScroll();
             } catch (e) {
               console.error('打字机式渲染错误:', e);
             }
@@ -877,9 +899,9 @@ const sendMessage = async () => {
                   }
 
                   if (isInThinking && reasoning) {
-                    accumulatedThinking += reasoning;
-                    updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                    scheduleScroll();
+                    // 将思考过程推入前端渲染队列，按固定速率输出
+                    thinkingRenderQueue.value += reasoning;
+                    startPacedRender();
                     if (loading.value) loading.value = false;
                     continue;
                   }
@@ -940,9 +962,8 @@ const sendMessage = async () => {
                 }
 
                 if (isInThinking && reasoning) {
-                  accumulatedThinking += reasoning;
-                  updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
-                  scheduleScroll();
+                  thinkingRenderQueue.value += reasoning;
+                  startPacedRender();
                   if (loading.value) loading.value = false;
                 }
 
@@ -1017,6 +1038,7 @@ const updateAssistantMessage = (content, thinking, references) => {
         // 停止前端节流渲染并清空队列
         if (renderTimer.value) { clearInterval(renderTimer.value); renderTimer.value = null; }
         renderQueue.value = '';
+        thinkingRenderQueue.value = '';
         streamEnded.value = false;
         // 移除最后添加的助手消息（如果有的话）
         if (currentChat.messages.length > 0 && 
