@@ -777,9 +777,9 @@ const sendMessage = async () => {
         let buffer = '';
         let eventDataLines = [];
         // rAF 滚动（统一在下方只定义一次）
-        // 打字机式渲染：更高频更小步长 → 每166ms输出1个字符（≈每秒6字）
+        // 打字机式渲染：每84ms输出1个字符（≈每秒12字，原先的两倍速度）
         const TOTAL_CHARS_PER_TICK = 1;
-        const TICK_MS = 167;
+        const TICK_MS = 84;
         // 安全分割函数：尽量避免拆分复合字符（emoji/变体等）
         const takeGraphemes = (input, count) => {
           try {
@@ -838,6 +838,13 @@ const sendMessage = async () => {
                   currentChat.messages[lastIndex].thinkingContent = prev + thinkOut;
                 }
                 remaining -= thinkOut.length > 0 ? 1 : 0;
+                // 若思考内容仍在输出，确保思考面板处于展开态
+                if (thinkOut && thinkOut.length > 0) {
+                  const idx = currentChat.messages.length - 1;
+                  if (idx >= 0) {
+                    expandedThinking.value.add(idx);
+                  }
+                }
               }
 
               // 再输出正式内容（剩余全部）
@@ -909,10 +916,20 @@ const sendMessage = async () => {
                     accumulatedThinking = '';
                     hasThinkingStarted = true;
                     updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    // 自动展开当前消息的思考面板
+                    const idx = currentChat.messages.length - 1;
+                    if (idx >= 0) {
+                      expandedThinking.value.add(idx);
+                    }
                     continue;
                   } else if (reasoning === '</think>') {
                     isInThinking = false;
                     updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                    // 思考结束，自动收起面板（若队列也为空，则立即收起）
+                    const idx = currentChat.messages.length - 1;
+                    if (idx >= 0) {
+                      expandedThinking.value.delete(idx);
+                    }
                     continue;
                   }
 
@@ -972,10 +989,18 @@ const sendMessage = async () => {
                   accumulatedThinking = '';
                   hasThinkingStarted = true;
                   updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  const idx = currentChat.messages.length - 1;
+                  if (idx >= 0) {
+                    expandedThinking.value.add(idx);
+                  }
                   continue;
                 } else if (reasoning === '</think>') {
                   isInThinking = false;
                   updateAssistantMessage(accumulatedContent, accumulatedThinking, accumulatedReferences);
+                  const idx = currentChat.messages.length - 1;
+                  if (idx >= 0) {
+                    expandedThinking.value.delete(idx);
+                  }
                   continue;
                 }
 
