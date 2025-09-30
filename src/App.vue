@@ -677,7 +677,7 @@ export default {
     };
 
     // 发送消息
-    const sendMessage = async () => {
+  const sendMessage = async () => {
   if (!userInput.value.trim() || loading.value) return;
   if (!currentUserInfo.value) {
     showLoginDialog.value = true;
@@ -697,15 +697,23 @@ export default {
   thinkingContent.value = '';
   showThinking.value = false;
 
-  const responseElement = {
-    role: 'assistant',
-    content: '',
-    references: [],
-    timestamp: new Date()
-  };
-  currentChat.messages.push(responseElement);
+  // 👇 关键：创建一个响应式的 content 字符串（用 ref）
+  const assistantContent = ref('');
+  const assistantReferences = ref([]);
 
-  // 构建消息（保留开场白逻辑）
+  // 先 push 一个占位消息（内容为空）
+  currentChat.messages.push({
+    role: 'assistant',
+    content: assistantContent, // ← 这样 content 是 ref，但 template 中不能直接 v-html ref
+    references: assistantReferences,
+    timestamp: new Date()
+  });
+
+  // ❌ 但 v-html 不支持 ref，所以更好的方式是：用一个变量累积，然后整体替换
+  // ✅ 所以我们改用：累积字符串，然后每次替换整个 messages 数组
+  let accumulatedContent = '';
+  let accumulatedReferences = [];
+
   const messages = [
     { role: 'user', content: '这是一个模拟开场白' },
     { role: 'assistant', content: '\n我是一位制剂专家。' },
@@ -746,7 +754,6 @@ export default {
       const chunk = decoder.decode(value, { stream: true });
       buffer += chunk;
 
-      // 处理每一行
       let newlineIndex;
       while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
         let line = buffer.slice(0, newlineIndex).trim();
@@ -758,7 +765,11 @@ export default {
             // 保存历史
             chatHistory.value.push({
               question,
-              messages: [...currentChat.messages],
+              messages: currentChat.messages.map(msg => ({
+                ...msg,
+                content: typeof msg.content === 'string' ? msg.content : accumulatedContent,
+                references: msg.references || accumulatedReferences
+              })),
               timestamp: new Date()
             });
             if (chatHistory.value.length > 10) chatHistory.value.shift();
@@ -773,8 +784,7 @@ export default {
             const content = delta.content;
             const reasoning = delta.reasoning_content;
 
-            // 处理思考模式
-            if (reasoning === '<think>') {
+            if (reasoning === 'thinks>') {
               isInThinkingMode.value = true;
               thinkingContent.value = '';
               continue;
@@ -789,21 +799,31 @@ export default {
               continue;
             }
 
-            // 显示内容
             if (content) {
-              responseElement.content += content;
-              currentChat.messages = [...currentChat.messages]; // 强制更新
-              nextTick(scrollToBottom);
+              accumulatedContent += content;
             }
 
             if (delta.references) {
-              responseElement.references = delta.references;
+              accumulatedReferences = delta.references;
             }
+
+            // 👇 关键：替换整个 messages 数组，确保响应式更新
+            currentChat.messages = [
+              ...currentChat.messages.slice(0, -1), // 保留除最后一条外的所有消息
+              {
+                role: 'assistant',
+                content: accumulatedContent,
+                references: accumulatedReferences,
+                timestamp: currentChat.messages[currentChat.messages.length - 1].timestamp
+              }
+            ];
 
             // 第一次收到内容就关闭 loading
             if ((content || reasoning) && loading.value) {
               loading.value = false;
             }
+
+            nextTick(scrollToBottom);
 
           } catch (e) {
             console.error('JSON parse error:', e, dataStr);
@@ -815,7 +835,6 @@ export default {
     console.error('发送消息失败:', error);
     loading.value = false;
 
-    // 添加错误消息
     const errorMsg = {
       role: 'assistant',
       content: language.value === 'zh'
