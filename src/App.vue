@@ -502,35 +502,25 @@ export default {
       loginLoading.value = true;
       
       try {
-        // 调用登录函数
-        const success = await login(loginUsername.value.trim(), loginPassword.value.trim(), loginType.value);
-        
-        if (success) {
-          // 登录成功，检查用户是否真的登录了
-          const isLoggedIn = await autoLoginCheck();
-          if (isLoggedIn) {
-            // 获取用户信息
-            currentUserInfo.value = getCurrentUserInfo();
-            console.log('登录成功，用户信息:', currentUserInfo.value);
-            
-            // 关闭登录对话框
-            showLoginDialog.value = false;
-            
-            // 重置登录表单
-            resetLoginForm();
-          } else {
-            loginError.value = language.value === 'zh' ? '登录失败，请检查您的账号密码' : 'Login failed, please check your username and password';
-          }
-        } else {
-          loginError.value = language.value === 'zh' ? '登录失败，请检查您的账号密码' : 'Login failed, please check your username and password';
-        }
-      } catch (error) {
-        console.error('登录过程中发生错误:', error);
-        loginError.value = error.message || (language.value === 'zh' ? '登录失败，请稍后再试' : 'Login failed, please try again later');
-      } finally {
-        // 重置登录加载状态
-        loginLoading.value = false;
+    const success = await login(loginUsername.value.trim(), loginPassword.value.trim(), loginType.value);
+    if (success) {
+      // ✅ 重新检测登录状态并获取用户信息
+      const isLoggedIn = await autoLoginCheck();
+      if (isLoggedIn) {
+        currentUserInfo.value = await getCurrentUserInfo(); // ← 异步获取
+        showLoginDialog.value = false;
+        resetLoginForm();
+      } else {
+        loginError.value = '登录后验证失败，请重试';
       }
+    } else {
+      loginError.value = '登录请求失败';
+    }
+  } catch (error) {
+    loginError.value = error.message || '登录异常';
+  } finally {
+    loginLoading.value = false;
+  }
     };
     
     // 重置登录表单
@@ -543,45 +533,23 @@ export default {
 
     // 初始化加载历史聊天记录
     onMounted(async () => {
-      console.log('[App] 应用已挂载，开始自动登录检查');
-      loadChatHistory();
-      
-      try {
-        // 添加临时的自动登录状态指示，让用户能看到自动登录正在进行
-        // 在实际项目中可以使用一个全局状态管理或UI组件来显示这个信息
-        console.log('[App] 正在执行自动登录检查...');
-        localStorage.setItem('autoLoginCheckInProgress', 'true');
-        
-        // 检查wemol平台登录状态
-        console.log('[App] 准备调用autoLoginCheck函数');
-        const isLoggedIn = await autoLoginCheck();
-        console.log('[App] autoLoginCheck函数调用完成，结果:', isLoggedIn);
-        
-        // 记录自动登录结果到localStorage，用于调试
-        localStorage.setItem('lastAutoLoginResult', isLoggedIn.toString());
-        localStorage.setItem('lastAutoLoginTime', new Date().toISOString());
-        localStorage.removeItem('autoLoginCheckInProgress');
-        
-        if (!isLoggedIn) {
-          // 如果未登录，显示登录提示对话框
-          console.log('[App] 用户未登录，显示登录提示对话框');
-          showLoginDialog.value = true;
-        } else {
-          // 用户已登录，获取用户信息
-          currentUserInfo.value = getCurrentUserInfo();
-          console.log('[App] 当前登录用户信息:', currentUserInfo.value);
-          // 记录用户信息到localStorage，用于调试
-          if (currentUserInfo.value) {
-            localStorage.setItem('lastLoginUserInfo', JSON.stringify(currentUserInfo.value));
-          }
-        }
-      } catch (error) {
-        console.error('[App] 自动登录检查过程中发生错误:', error);
-        // 记录错误信息到localStorage
-        localStorage.setItem('autoLoginError', error.message || '未知错误');
-        localStorage.removeItem('autoLoginCheckInProgress');
-      }
-    });
+  console.log('[App] 开始自动登录检查...');
+  loadChatHistory();
+
+  try {
+    const isLoggedIn = await autoLoginCheck();
+    if (isLoggedIn) {
+      // ✅ 异步获取用户信息
+      currentUserInfo.value = await getCurrentUserInfo();
+      console.log('[App] 用户已登录:', currentUserInfo.value);
+    } else {
+      showLoginDialog.value = true;
+    }
+  } catch (error) {
+    console.error('[App] 自动登录异常:', error);
+    showLoginDialog.value = true;
+  }
+});
 
     // 加载聊天历史
     const loadChatHistory = () => {
@@ -708,12 +676,11 @@ export default {
 
       const question = userInput.value.trim();
       
-      // 在发送问题前先检查登录状态
-      const isLoggedIn = checkWemolLogin();
-      if (!isLoggedIn) {
-        showLoginDialog.value = true;
-        return;
-      }
+      // ✅ 改为异步检查（或直接依赖 currentUserInfo）
+  if (!currentUserInfo.value) {
+    showLoginDialog.value = true;
+    return;
+  }
 
       // 添加用户消息到当前对话
       currentChat.messages.push({
@@ -783,7 +750,8 @@ export default {
               'Content-Type': 'application/json',
               'Accept': 'text/event-stream',
               'Cache-Control': 'no-cache',
-              'X-Requested-With': 'XMLHttpRequest'
+              'X-Requested-With': 'XMLHttpRequest',
+              'Authorization': `Bearer ${apiKey}`
             }
           }
         );
