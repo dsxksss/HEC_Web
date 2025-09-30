@@ -56,13 +56,19 @@ export function getCurrentUserInfo() {
   const userName = getCookie('userName') || getCookie('user_name') || getCookie('Name');
   
   if (antUid || antUidSys) {
+    // 如果没有有效的用户名，使用默认的友好用户名
+    let displayName = userName;
+    if (!displayName || displayName.includes('用户') && !isNaN(displayName.replace('用户', ''))) {
+      displayName = 'HEC用户';
+    }
+    
     return {
       // 优先返回前台用户信息(ant_uid)
       ant_uid: antUid || antUidSys, // 如果ant_uid不存在则使用antUidSys
       ant_uid_sys: antUidSys, 
       isFrontendUser: antUid !== null, // 标识是否为前台用户
-      // 尝试从cookie中获取用户名
-      Name: userName
+      // 使用处理后的用户名
+      Name: displayName
     };
   }
   
@@ -309,61 +315,51 @@ export async function login(username, password, loginType = 'user') {
  */
 export async function logout(allSessions = true) {
   try {
-    // 尝试清理cookie
+    // 清理cookie中的登录信息（这是最关键的退出登录操作）
     document.cookie = 'ant_uid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     document.cookie = 'ant_uid_sys=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'userName=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'user_name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'Name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     
-    if (allSessions) {
-      // 退出所有会话，同时调用用户和系统的退出登录API
-      const userLogoutPromise = axios.post('/api/user/logout', {}, {
-        withCredentials: true,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      const sysLogoutPromise = axios.post('/api/sys/logout', {}, {
-        withCredentials: true,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      const [userResponse, sysResponse] = await Promise.all([userLogoutPromise, sysLogoutPromise]);
-      
-      // 对于axios，检查状态码是否在200-299范围内
-      if ((userResponse.status >= 200 && userResponse.status < 300) || 
-          (sysResponse.status >= 200 && sysResponse.status < 300)) {
-        console.log('退出登录成功');
-        return true;
+    // 尝试调用API进行服务端注销，但即使失败也继续执行
+    try {
+      if (allSessions) {
+        // 尝试调用两个注销API，但不关心结果
+        await Promise.allSettled([
+          axios.post('/api/user/logout', {}, {
+            withCredentials: true,
+            headers: {'Content-Type': 'application/json'},
+            timeout: 1000 // 设置超时，避免长时间等待
+          }),
+          axios.post('/api/sys/logout', {}, {
+            withCredentials: true,
+            headers: {'Content-Type': 'application/json'},
+            timeout: 1000
+          })
+        ]);
       } else {
-        console.error('退出登录请求失败');
-        return false;
+        // 根据用户类型选择API，但也不关心结果
+        const userInfo = getCurrentUserInfo();
+        const apiEndpoint = userInfo && userInfo.isFrontendUser ? '/api/user/logout' : '/api/sys/logout';
+        
+        await axios.post(apiEndpoint, {}, {
+          withCredentials: true,
+          headers: {'Content-Type': 'application/json'},
+          timeout: 1000
+        }).catch(() => {}); // 忽略错误
       }
-    } else {
-      // 根据当前登录用户类型选择退出登录API
-      const userInfo = getCurrentUserInfo();
-      const apiEndpoint = userInfo && userInfo.isFrontendUser ? '/api/user/logout' : '/api/sys/logout';
-      
-      const response = await axios.post(apiEndpoint, {}, {
-        withCredentials: true,
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      // 对于axios，检查状态码是否在200-299范围内
-      if (response.status >= 200 && response.status < 300) {
-        console.log('退出登录成功');
-        return true;
-      } else {
-        console.error('退出登录请求失败');
-        return false;
-      }
+    } catch (apiError) {
+      console.warn('注销API调用失败，但已成功清除本地cookie:', apiError.message);
     }
+    
+    // 无论API调用是否成功，只要清除了cookie就视为退出成功
+    console.log('退出登录成功（已清除本地cookie）');
+    return true;
   } catch (error) {
     console.error('退出登录过程中发生错误:', error);
-    return false;
+    // 即使有错误，也尝试返回true，因为清除cookie是最重要的
+    return true;
   }
 }
 
