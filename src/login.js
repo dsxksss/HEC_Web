@@ -28,8 +28,8 @@ export function checkWemolLogin() {
   const antUid = getCookie('ant_uid');
   const antUidSys = getCookie('ant_uid_sys');
   
-  // 如果ant_uid和ant_uid_sys都存在，则认为用户已登录
-  return antUid !== null && antUidSys !== null;
+  // 只要ant_uid或ant_uid_sys存在，则认为用户已登录
+  return antUid !== null || antUidSys !== null;
 }
 
 /**
@@ -40,10 +40,12 @@ export function getCurrentUserInfo() {
   const antUid = getCookie('ant_uid');
   const antUidSys = getCookie('ant_uid_sys');
   
-  if (antUid && antUidSys) {
+  if (antUid || antUidSys) {
     return {
-      ant_uid: antUid,
-      ant_uid_sys: antUidSys,
+      // 优先返回前台用户信息(ant_uid)
+      ant_uid: antUid || antUidSys, // 如果ant_uid不存在则使用antUidSys
+      ant_uid_sys: antUidSys, 
+      isFrontendUser: antUid !== null, // 标识是否为前台用户
       // 可以根据需要添加更多信息
     };
   }
@@ -59,12 +61,37 @@ export function getCurrentUserInfo() {
 export async function autoLoginCheck() {
   try {
     // 首先检查本地cookie
-    const isLoggedIn = checkWemolLogin();
+    const userInfo = getCurrentUserInfo();
+    const isLoggedIn = userInfo !== null;
     
     if (isLoggedIn) {
       // 用户已登录，返回用户信息
-      const userInfo = getCurrentUserInfo();
       console.log('用户已登录wemol平台:', userInfo);
+      
+      // 如果用户已登录，尝试根据用户类型获取会话信息验证登录是否有效
+      try {
+        const apiEndpoint = userInfo.isFrontendUser ? '/api/user/session_data' : '/api/sys/session_data';
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (response.ok) {
+          const sessionData = await response.json();
+          if (sessionData && sessionData.SessionData) {
+            console.log('会话验证成功');
+            return true;
+          }
+        }
+      } catch (sessionError) {
+        console.error('会话验证失败，但仍保持登录状态:', sessionError);
+        // 会话验证失败但保持登录状态，因为cookie存在
+        return true;
+      }
+      
       return true;
     } else {
       // 用户未登录，尝试通过接口验证
@@ -99,6 +126,24 @@ export async function autoLoginCheck() {
     // 出错时默认认为未登录
     return false;
   }
+}
+
+/**
+ * 根据用户类型获取对应的登录状态检测API
+ * @param {boolean} isFrontendUser - 是否为前台用户
+ * @returns {string} - API端点
+ */
+function getLoginStatusApi(isFrontendUser) {
+  return isFrontendUser ? '/api/user/login_status' : '/api/sys/login_status';
+}
+
+/**
+ * 根据用户类型获取对应的退出登录API
+ * @param {boolean} isFrontendUser - 是否为前台用户
+ * @returns {string} - API端点
+ */
+function getLogoutApi(isFrontendUser) {
+  return isFrontendUser ? '/api/user/logout' : '/api/sys/logout';
 }
 
 /**
@@ -161,29 +206,62 @@ export async function login(username, password, loginType = 'user') {
 
 /**
  * 退出登录函数
+ * @param {boolean} allSessions - 是否退出所有会话（前台和后台）
  * @returns {Promise<boolean>} - 退出登录结果
  */
-export async function logout() {
+export async function logout(allSessions = true) {
   try {
     // 尝试清理cookie
     document.cookie = 'ant_uid=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     document.cookie = 'ant_uid_sys=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     
-    // 调用退出登录API
-    const response = await fetch('/api/user/logout', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
+    if (allSessions) {
+      // 退出所有会话，同时调用用户和系统的退出登录API
+      const userLogoutPromise = fetch('/api/user/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const sysLogoutPromise = fetch('/api/sys/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const [userResponse, sysResponse] = await Promise.all([userLogoutPromise, sysLogoutPromise]);
+      
+      if (userResponse.ok || sysResponse.ok) {
+        console.log('退出登录成功');
+        return true;
+      } else {
+        console.error('退出登录请求失败');
+        return false;
       }
-    });
-    
-    if (response.ok) {
-      console.log('退出登录成功');
-      return true;
     } else {
-      console.error('退出登录请求失败');
-      return false;
+      // 根据当前登录用户类型选择退出登录API
+      const userInfo = getCurrentUserInfo();
+      const apiEndpoint = userInfo && userInfo.isFrontendUser ? '/api/user/logout' : '/api/sys/logout';
+      
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        console.log('退出登录成功');
+        return true;
+      } else {
+        console.error('退出登录请求失败');
+        return false;
+      }
     }
   } catch (error) {
     console.error('退出登录过程中发生错误:', error);
@@ -193,18 +271,24 @@ export async function logout() {
 
 /**
  * 获取用户会话信息
+ * @param {boolean} useSysApi - 是否使用系统API（后台用户）
  * @returns {Promise<Object|null>} - 会话信息，如果未登录则返回null
  */
-export async function getUserSession() {
+export async function getUserSession(useSysApi = false) {
   try {
     // 先检查是否已登录
-    if (!checkWemolLogin()) {
+    const userInfo = getCurrentUserInfo();
+    if (!userInfo) {
       return null;
     }
     
-    // 调用接口获取用户会话信息
-    const response = await fetch('/api/user/session', {
-      method: 'GET',
+    // 根据用户类型选择API端点或使用指定的API类型
+    const isSysUser = useSysApi || !userInfo.isFrontendUser;
+    const apiEndpoint = isSysUser ? '/api/sys/session_data' : '/api/user/session_data';
+    
+    // 调用新的session_data接口获取用户会话信息
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -213,12 +297,58 @@ export async function getUserSession() {
     
     if (response.ok) {
       const data = await response.json();
-      return data.Data || null;
+      // 返回SessionData字段，这是用户要求的格式
+      return data.SessionData || null;
     }
     
     return null;
   } catch (error) {
     console.error('获取用户会话信息失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 续期用户会话过期时间
+ * @param {boolean} updateData - 是否同时更新用户信息
+ * @param {boolean} useSysApi - 是否使用系统API（后台用户）
+ * @returns {Promise<Object|null>} - 会话信息，如果续期失败则返回null
+ */
+export async function renewUserSession(updateData = false, useSysApi = false) {
+  try {
+    // 先检查是否已登录
+    const userInfo = getCurrentUserInfo();
+    if (!userInfo) {
+      console.error('用户未登录，无法续期会话');
+      return null;
+    }
+    
+    // 根据用户类型选择API端点或使用指定的API类型
+    const isSysUser = useSysApi || !userInfo.isFrontendUser;
+    const apiEndpoint = isSysUser 
+      ? `/api/sys/session_update?data=${updateData}` 
+      : `/api/user/session_update?data=${updateData}`;
+    
+    // 调用session_update接口续期会话
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`会话续期${updateData ? '并更新信息' : ''}成功`);
+      // 返回SessionData字段，这是用户要求的格式
+      return data.SessionData || null;
+    }
+    
+    console.error('会话续期请求失败');
+    return null;
+  } catch (error) {
+    console.error('会话续期过程中发生错误:', error);
     return null;
   }
 }
