@@ -101,7 +101,7 @@
               <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700">
                 {{ getInitials(currentUserInfo.ant_uid) }}
               </div>
-              <span class="text-sm text-gray-700">用户{{ currentUserInfo.ant_uid }}</span>
+              <span class="text-sm text-gray-700">{{ currentUserInfo.Name || `用户${currentUserInfo.ant_uid}` }}</span>
               <button 
                 class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors"
                 @click="handleLogout"
@@ -110,15 +110,6 @@
                 退出
               </button>
             </div>
-            
-            <button 
-              class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="更多选项"
-            >
-              <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
-              </svg>
-            </button>
           </div>
         </div>
         
@@ -1145,33 +1136,7 @@ export default {
       showLoginDialog.value = false;
     };
 
-    // 导出对话
-    const exportChat = () => {
-      if (currentChat.messages.length === 0) {
-        alert('没有对话内容可导出');
-        return;
-      }
-      
-      const chatData = {
-        title: currentChatTitle.value || '对话记录',
-        messages: currentChat.messages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.timestamp
-        })),
-        exportTime: new Date().toISOString()
-      };
-      
-      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `chat-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
+    // 导出对话功能已移除
 
     // 加载更多聊天记录
     const loadMoreChats = () => {
@@ -1207,7 +1172,6 @@ export default {
       regenerateResponse,
       likeMessage,
       deleteMessage,
-      exportChat,
       loadMoreChats,
       cancelRequest,
       showLoginDialog,

@@ -52,6 +52,7 @@ export function checkWemolLogin() {
 export function getCurrentUserInfo() {
   const antUid = getCookie('ant_uid');
   const antUidSys = getCookie('ant_uid_sys');
+  const userName = getCookie('userName') || getCookie('user_name') || getCookie('Name');
   
   if (antUid || antUidSys) {
     return {
@@ -59,7 +60,8 @@ export function getCurrentUserInfo() {
       ant_uid: antUid || antUidSys, // 如果ant_uid不存在则使用antUidSys
       ant_uid_sys: antUidSys, 
       isFrontendUser: antUid !== null, // 标识是否为前台用户
-      // 可以根据需要添加更多信息
+      // 尝试从cookie中获取用户名
+      Name: userName
     };
   }
   
@@ -73,17 +75,22 @@ export function getCurrentUserInfo() {
  */
 export async function autoLoginCheck() {
   try {
-    // 首先检查本地cookie
-    const userInfo = getCurrentUserInfo();
-    const isLoggedIn = userInfo !== null;
+    // 检查cookie中是否存在登录信息
+    const antUid = getCookie('ant_uid');
+    const antUidSys = getCookie('ant_uid_sys');
+    const isFrontendUser = antUid !== null && antUidSys === null;
     
-    if (isLoggedIn) {
-      // 用户已登录，返回用户信息
+    if (antUid || antUidSys) {
+      // 用户已登录，构造用户信息对象
+      const userInfo = { antUid, antUidSys, isFrontendUser };
       console.log('用户已登录wemol平台:', userInfo);
       
-      // 如果用户已登录，尝试根据用户类型获取会话信息验证登录是否有效
+      // 根据用户类型使用正确的API验证登录是否有效
       try {
-        const apiEndpoint = userInfo.isFrontendUser ? '/api/user/session_data' : '/api/sys/session_data';
+        const apiEndpoint = userInfo.isFrontendUser 
+          ? '/api/user/session_update?data=true' 
+          : '/api/sys/session_update?data=true';
+        
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           credentials: 'include',
@@ -94,21 +101,24 @@ export async function autoLoginCheck() {
         
         if (response.ok) {
           const sessionData = await response.json();
+          console.log('会话验证成功，返回数据:', sessionData);
+          // 将会话数据中的用户信息合并到userInfo对象中
           if (sessionData && sessionData.SessionData) {
-            console.log('会话验证成功');
-            return true;
+            // 更新用户信息，包括Name字段
+            Object.assign(userInfo, sessionData.SessionData);
           }
+          return true;
+        } else {
+          console.error('会话验证失败，API返回非成功状态:', response.status);
+          return false;
         }
       } catch (sessionError) {
-        console.error('会话验证失败，但仍保持登录状态:', sessionError);
-        // 会话验证失败但保持登录状态，因为cookie存在
+        console.error('会话验证请求失败:', sessionError);
+        // 请求失败时，不立即判定未登录，而是尝试返回用户信息
         return true;
       }
-      
-      return true;
     } else {
       // 用户未登录
-      // 注意：不再尝试调用/api/user/login_status接口，因为该接口返回404
       console.log('用户未登录wemol平台');
       return false;
     }
