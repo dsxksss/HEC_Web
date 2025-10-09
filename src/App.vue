@@ -14,8 +14,10 @@
         <!-- 新对话按钮 -->
         <div class="flex gap-2">
           <button 
-            class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-            @click="startNewChat"
+            class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+            :class="loading ? 'cursor-not-allowed opacity-50' : 'hover:bg-blue-700'"
+            @click="loading ? null : startNewChat"
+            :disabled="loading"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -27,14 +29,28 @@
       
       <!-- 聊天历史列表 -->
       <div class="flex-1 overflow-y-auto p-3 space-y-2">
+        <!-- 加载状态提示 -->
+        <div v-if="loading" class="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div class="flex items-center gap-2 text-xs text-yellow-700">
+            <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            {{ language === 'zh' ? '正在回答中，请稍候...' : 'Answering, please wait...' }}
+          </div>
+        </div>
         <div 
           v-for="(chat, index) in chatHistory" 
           :key="index"
-          class="p-3 rounded-lg text-sm cursor-pointer transition-all relative group"
-          :class="currentChatIndex === index 
-            ? 'bg-blue-50 border border-blue-200' 
-            : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'"
-          @click="loadChat(index)"
+          class="p-3 rounded-lg text-sm transition-all relative group"
+          :class="[
+            currentChatIndex === index 
+              ? 'bg-blue-50 border border-blue-200' 
+              : 'bg-white border border-gray-200',
+            loading 
+              ? 'cursor-not-allowed opacity-50' 
+              : 'cursor-pointer hover:bg-gray-50 hover:border-gray-300'
+          ]"
+          @click="loading ? null : loadChat(index)"
         >
           <div class="flex items-start gap-3">
             <div class="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -48,7 +64,9 @@
             </div>
             <button 
               class="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full hover:bg-red-100 flex items-center justify-center transition-all"
-              @click.stop="deleteChat(index)"
+              :class="loading ? 'cursor-not-allowed opacity-30' : ''"
+              @click.stop="loading ? null : deleteChat(index)"
+              :disabled="loading"
               title="删除对话"
             >
               <svg class="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
