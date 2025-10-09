@@ -235,7 +235,7 @@
             </div>
           </div>
           
-          <p v-html="formatMessage(message.content)" class="whitespace-pre-wrap leading-relaxed"></p>
+          <p class="whitespace-pre-wrap leading-relaxed">{{ message.content }}</p>
           <!-- 引用部分 - 现代简洁风格 -->
           <div v-if="message.references && message.references.length > 0" class="mt-2">
             <div class="flex items-center gap-1.5 mb-1.5">
