@@ -246,14 +246,14 @@
                 </svg>
               </button>
               <div v-show="expandedThinking.has(index)" class="px-3 bg-white transition-all duration-200">
-                <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono">
+                <div class="text-sm text-gray-700 leading-relaxed font-mono" style="white-space: pre-line;">
                   {{ message.thinkingContent }}
                 </div>
               </div>
             </div>
           </div>
           
-          <p class="whitespace-pre-wrap leading-relaxed">{{ message.content }}</p>
+          <p class="leading-relaxed mt-2">{{ message.content }}</p>
           <!-- 引用部分 - 现代简洁风格 -->
           <div v-if="message.references && message.references.length > 0" class="mt-2">
             <div class="flex items-center gap-1.5 mb-1.5">
