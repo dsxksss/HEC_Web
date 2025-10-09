@@ -256,7 +256,7 @@
             </div>
           </div>
           
-          <p class="leading-relaxed mt-2">{{ message.content }}</p>
+          <div class="leading-relaxed mt-2 markdown-content" v-html="renderMarkdown(message.content)"></div>
           <!-- 引用部分 - 现代简洁风格 -->
           <div v-if="message.references && message.references.length > 0" class="mt-2">
             <div class="flex items-center gap-1.5 mb-1.5">
@@ -475,12 +475,35 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, nextTick, computed } from 'vue';
 import { getCurrentUserInfo, autoLoginCheck,login, logout } from './login.js';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
 
 export default {
   name: 'App',
   setup() {
+    // 配置 marked 和 highlight.js
+    marked.setOptions({
+      highlight: function(code, lang) {
+        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return hljs.highlight(code, { language }).value;
+      },
+      breaks: true, // 支持换行
+      gfm: true, // 支持GitHub风格的Markdown
+    });
+
+    // Markdown渲染函数
+    const renderMarkdown = (content) => {
+      if (!content) return '';
+      try {
+        return marked(content);
+      } catch (error) {
+        console.error('Markdown渲染错误:', error);
+        return content; // 如果渲染失败，返回原始内容
+      }
+    };
+
     // 状态管理
     const language = ref('zh');
     const userInput = ref('');
@@ -1318,7 +1341,8 @@ const updateAssistantMessage = (content, thinking, references) => {
       expandedThinking,
       toggleThinking,
       saveChatHistory,
-      isTyping
+      isTyping,
+      renderMarkdown
     };
   }
 };

@@ -196,3 +196,214 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Markdown 内容样式 */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-content h1 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.3em;
+}
+
+.markdown-content h2 {
+  font-size: 1.3em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.3em;
+}
+
+.markdown-content h3 {
+  font-size: 1.1em;
+}
+
+.markdown-content p {
+  margin-bottom: 1em;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-content blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid #3b82f6;
+  background-color: #f8fafc;
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-content code {
+  background-color: #f1f5f9;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  color: #e11d48;
+}
+
+.markdown-content pre {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  padding: 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1em 0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #d1d5db;
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.markdown-content a {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.markdown-content a:hover {
+  color: #1d4ed8;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+}
+
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2em 0;
+}
+
+/* 代码高亮样式 */
+.hljs {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #64748b;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #f472b6;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: #fb7185;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: #34d399;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #fbbf24;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: #60a5fa;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: #a78bfa;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: #34d399;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: #fbbf24;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #60a5fa;
+}
+
+.hljs-meta {
+  color: #64748b;
+}
+
+.hljs-deletion {
+  background: #fef2f2;
+}
+
+.hljs-addition {
+  background: #f0fdf4;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
