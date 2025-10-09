@@ -22,15 +22,6 @@
             </svg>
             新对话
           </button>
-          <button 
-            class="px-3 py-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all"
-            @click="exportChat"
-            title="导出对话"
-          >
-            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
-          </button>
         </div>
       </div>
       
@@ -67,15 +58,7 @@
           </div>
         </div>
         
-        <!-- 加载更多 -->
-        <div v-if="chatHistory.length > 5" class="text-center py-4">
-          <button 
-            class="text-sm text-blue-600 hover:text-blue-700 transition-colors"
-            @click="loadMoreChats"
-          >
-            点击加载更多
-          </button>
-        </div>
+        
       </div>
     </div>
 
@@ -558,6 +541,15 @@ export default {
 
     // 初始化加载历史聊天记录
     onMounted(async () => {
+  // 初始化语言：优先使用本地存储，其次浏览器首选语言
+  const savedLang = localStorage.getItem('appLanguage');
+  if (savedLang === 'zh' || savedLang === 'en') {
+    language.value = savedLang;
+  } else {
+    const prefersZh = (navigator.language || navigator.userLanguage || 'zh').toLowerCase().startsWith('zh');
+    language.value = prefersZh ? 'zh' : 'en';
+  }
+  document.documentElement.lang = language.value === 'zh' ? 'zh-CN' : 'en';
   console.log('[App] 开始自动登录检查...');
   loadChatHistory();
 
@@ -689,7 +681,9 @@ export default {
 
     // 切换语言
     const changeLanguage = () => {
-      // 语言切换时可能需要的操作
+      const lang = language.value === 'zh' ? 'zh' : 'en';
+      localStorage.setItem('appLanguage', lang);
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
     };
 
     // 发送示例问题
@@ -777,9 +771,9 @@ const sendMessage = async () => {
         let buffer = '';
         let eventDataLines = [];
         // rAF 滚动（统一在下方只定义一次）
-        // 打字机式渲染：每56ms输出1个字符（≈每秒18字）
+        // 打字机式渲染：每45ms输出1个字符（≈每秒22字）
         const TOTAL_CHARS_PER_TICK = 1;
-        const TICK_MS = 56;
+        const TICK_MS = 45;
         // 安全分割函数：尽量避免拆分复合字符（emoji/变体等）
         const takeGraphemes = (input, count) => {
           try {
@@ -1253,11 +1247,7 @@ const updateAssistantMessage = (content, thinking, references) => {
 
     // 导出对话功能已移除
 
-    // 加载更多聊天记录
-    const loadMoreChats = () => {
-      // 实现加载更多功能
-      console.log('加载更多聊天记录');
-    };
+    
 
     return {
       language,
@@ -1287,7 +1277,6 @@ const updateAssistantMessage = (content, thinking, references) => {
       regenerateResponse,
       likeMessage,
       deleteMessage,
-      loadMoreChats,
       cancelRequest,
       showLoginDialog,
       closeLoginDialog,
