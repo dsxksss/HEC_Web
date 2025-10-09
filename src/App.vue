@@ -204,7 +204,7 @@
             : 'bg-white border-gray-200'"
         >
           <!-- 思考过程手风琴 -->
-          <div v-if="message.thinkingContent" class="mb-1">
+          <div v-if="message.thinkingContent">
             <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-all">
               <button 
                 @click="toggleThinking(index)"
@@ -227,7 +227,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
-              <div v-show="expandedThinking.has(index)" class="p-3 bg-white transition-all duration-200">
+              <div v-show="expandedThinking.has(index)" class="px-3 bg-white transition-all duration-200">
                 <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-mono">
                   {{ message.thinkingContent }}
                 </div>
