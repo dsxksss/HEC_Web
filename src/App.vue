@@ -16,7 +16,7 @@
           <button 
             class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
             :class="(loading || isTyping) ? 'cursor-not-allowed opacity-50' : 'hover:bg-blue-700'"
-            @click="(loading || isTyping) ? null : startNewChat"
+            @click="startNewChat"
             :disabled="loading || isTyping"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -640,6 +640,7 @@ export default {
 
     // 开始新对话
     const startNewChat = () => {
+      // 重置所有状态
       currentChat.messages = [];
       userInput.value = '';
       currentChatIndex.value = -1;
@@ -647,9 +648,22 @@ export default {
       isInThinkingMode.value = false;
       thinkingContent.value = '';
       showThinking.value = false;
+      loading.value = false;
+      isTyping.value = false;
+      
+      // 停止打字机渲染
+      if (renderTimer.value) {
+        clearInterval(renderTimer.value);
+        renderTimer.value = null;
+      }
+      renderQueue.value = '';
+      thinkingRenderQueue.value = '';
+      streamEnded.value = false;
+      
       // 如果有正在进行的请求，取消它
       if (controller.value) {
         controller.value.abort();
+        controller.value = null;
       }
     };
 
