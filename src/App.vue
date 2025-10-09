@@ -204,7 +204,7 @@
             : 'bg-white border-gray-200'"
         >
           <!-- 思考过程手风琴 -->
-          <div v-if="message.thinkingContent">
+          <div v-if="message.thinkingContent" class="mb-1">
             <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden transition-all">
               <button 
                 @click="toggleThinking(index)"
@@ -810,8 +810,6 @@ const sendMessage = async () => {
                   saveChatHistory();
                   streamEnded.value = false;
                 }
-                // 渲染完成，停止加载状态
-                loading.value = false;
                 clearInterval(renderTimer.value);
                 renderTimer.value = null;
                 return;
@@ -888,6 +886,7 @@ const sendMessage = async () => {
                 if (dataStr === '[DONE]') {
                   // 仅标记结束，等待前端队列清空后统一保存
                   streamEnded.value = true;
+                  loading.value = false;
                   // 若无队列待输出，立即触发一次渲染循环以保存
                   startPacedRender();
                   return;
@@ -924,7 +923,7 @@ const sendMessage = async () => {
                     // 将思考过程推入前端渲染队列，按固定速率输出
                     thinkingRenderQueue.value += reasoning;
                     startPacedRender();
-                    // 保持加载状态，直到渲染完成
+                    if (loading.value) loading.value = false;
                     continue;
                   }
 
@@ -933,7 +932,7 @@ const sendMessage = async () => {
                     // 将新增内容推入前端渲染队列，按固定速率输出
                     renderQueue.value += content;
                     startPacedRender();
-                    // 保持加载状态，直到渲染完成
+                    if (loading.value) loading.value = false;
                   }
 
                   if (delta.references) {
@@ -959,6 +958,7 @@ const sendMessage = async () => {
               // 为了更快的 UI 刷新，这里直接解析当前 data 行
               if (dataPart === '[DONE]') {
                 streamEnded.value = true;
+                loading.value = false;
                 startPacedRender();
                 return;
               }
@@ -991,13 +991,13 @@ const sendMessage = async () => {
                 if (isInThinking && reasoning) {
                   thinkingRenderQueue.value += reasoning;
                   startPacedRender();
-                  // 保持加载状态，直到渲染完成
+                  if (loading.value) loading.value = false;
                 }
 
                 if (content) {
                   renderQueue.value += content;
                   startPacedRender();
-                  // 保持加载状态，直到渲染完成
+                  if (loading.value) loading.value = false;
                 }
 
                 if (delta.references) {
