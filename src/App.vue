@@ -1024,16 +1024,22 @@ const sendMessage = async () => {
       } catch (error) {
         console.error('发送消息失败:', error);
         loading.value = false;
-        const errorMsg = {
-          role: 'assistant',
-          content: language.value === 'zh'
-            ? `网络错误：${error.message || '请检查网络或稍后重试'}`
-            : `Network error: ${error.message || 'Please check your connection'}`,
-          thinkingContent: '',
-          references: [],
-          timestamp: new Date()
-        };
-        currentChat.messages.push(errorMsg);
+        
+        // 检查是否为用户主动取消，如果是则不显示错误消息
+        if (controller.value && controller.value.userCancelled) {
+          console.log('用户主动取消请求，不显示错误消息');
+        } else {
+          const errorMsg = {
+            role: 'assistant',
+            content: language.value === 'zh'
+              ? `网络错误：${error.message || '请检查网络或稍后重试'}`
+              : `Network error: ${error.message || 'Please check your connection'}`,
+            thinkingContent: '',
+            references: [],
+            timestamp: new Date()
+          };
+          currentChat.messages.push(errorMsg);
+        }
       } finally {
         loading.value = false;
         // 清理控制器
@@ -1064,6 +1070,9 @@ const updateAssistantMessage = (content, thinking, references) => {
     // 取消当前请求
     const cancelRequest = () => {
       if (controller.value) {
+        // 标记为用户主动取消，避免显示网络错误
+        controller.value.userCancelled = true;
+        
         // 使用axios的取消方式
         if (controller.value.cancel) {
           controller.value.cancel('Request cancelled');
