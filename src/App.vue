@@ -101,7 +101,7 @@
           </div>
           <div class="flex items-center gap-3">
             <!-- 用户信息和退出按钮 -->
-            <div v-if="currentUserInfo" class="flex items-center gap-2 mr-2">
+            <!-- <div v-if="currentUserInfo" class="flex items-center gap-2 mr-2">
               <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-700 overflow-hidden relative">
                 <img 
                   :src="`/api/user/avatar/${currentUserInfo.ant_uid}`" 
@@ -119,12 +119,12 @@
               >
                 退出
               </button>
-            </div>
+            </div> -->
           </div>
         </div>
         
         <!-- 语言选择卡片 -->
-        <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+        <!-- <div class="mt-4 p-3 bg-gray-50 rounded-lg">
           <div class="flex items-center gap-2">
             <span class="text-sm text-gray-600">*语言/Language</span>
             <select 
@@ -137,7 +137,7 @@
             </select>
             
           </div>
-        </div>
+        </div> -->
       </div>
 
       <div class="flex-1 overflow-y-auto p-4 space-y-3" ref="chatMessagesContainer">
