@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [vue(), tailwindcss()],
   server: {
     port: 8050,
+    allowedHosts: ['localhost', 'test.wemol.wecomput.com'],
     proxy: {
       // ✅ 第三方对话 API：用 /chat 代理
       '/chat': {
