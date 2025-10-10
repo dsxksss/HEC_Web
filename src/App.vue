@@ -164,7 +164,7 @@
                   <h4 class="text-sm font-semibold mb-2 text-gray-800">{{ language === 'zh' ? '单轮对话:' : 'Single-turn dialogue:' }}</h4>
                   <ul class="space-y-1.5">
                     <li v-for="(q, idx) in exampleQuestions.singleTurn[language]" :key="idx" 
-                        class="bg-gray-50 rounded-lg text-sm text-gray-700 cursor-pointer border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all" 
+                        class="p-3 bg-gray-50 rounded-lg text-sm text-gray-700 cursor-pointer border border-gray-200 hover:bg-gray-100 hover:border-gray-300 transition-all" 
                         @click="sendExampleQuestion(q)">
                       {{ q }}
                     </li>
